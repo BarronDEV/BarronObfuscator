@@ -1,0 +1,155 @@
+/* Barron Obfuscator Dark Theme */
+
+.root {
+    -fx-background-color: #1a1a2e;
+    -fx-font-family: "Segoe UI";
+}
+
+/* Labels */
+.label {
+    -fx-text-fill: #8892b0;
+}
+
+/* Buttons */
+.button {
+    -fx-background-color: #16213e;
+    -fx-text-fill: #8892b0;
+    -fx-background-radius: 5;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #1f4068;
+    -fx-text-fill: white;
+}
+
+.button:pressed {
+    -fx-background-color: #e94560;
+}
+
+/* CheckBox */
+.check-box {
+    -fx-text-fill: #8892b0;
+}
+
+.check-box .box {
+    -fx-background-color: #16213e;
+    -fx-border-color: #e94560;
+    -fx-border-radius: 3;
+}
+
+.check-box:selected .mark {
+    -fx-background-color: #e94560;
+}
+
+.check-box:selected .box {
+    -fx-background-color: #e94560;
+}
+
+/* Slider */
+.slider .track {
+    -fx-background-color: #16213e;
+    -fx-background-radius: 5;
+}
+
+.slider .thumb {
+    -fx-background-color: #e94560;
+    -fx-background-radius: 10;
+}
+
+.slider .axis {
+    -fx-tick-label-fill: #666666;
+}
+
+/* Progress Bar */
+.progress-bar {
+    -fx-background-color: #16213e;
+    -fx-background-radius: 5;
+}
+
+.progress-bar .bar {
+    -fx-background-color: linear-gradient(to right, #e94560, #00ff88);
+    -fx-background-radius: 5;
+    -fx-background-insets: 0;
+}
+
+.progress-bar .track {
+    -fx-background-color: #16213e;
+    -fx-background-radius: 5;
+}
+
+/* Text Area */
+.text-area {
+    -fx-background-color: #0f0f23;
+    -fx-text-fill: #00ff88;
+    -fx-font-family: "Consolas";
+}
+
+.text-area .content {
+    -fx-background-color: #0f0f23;
+}
+
+.text-area .scroll-pane {
+    -fx-background-color: #0f0f23;
+}
+
+.text-area .scroll-pane .viewport {
+    -fx-background-color: #0f0f23;
+}
+
+/* Scroll Bar */
+.scroll-bar {
+    -fx-background-color: #16213e;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #e94560;
+    -fx-background-radius: 5;
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-background-color: #e94560;
+}
+
+/* Separator */
+.separator .line {
+    -fx-border-color: #333355;
+    -fx-border-width: 1 0 0 0;
+}
+
+/* Tooltip */
+.tooltip {
+    -fx-background-color: #16213e;
+    -fx-text-fill: #8892b0;
+    -fx-border-color: #e94560;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+/* Alert Dialog */
+.alert {
+    -fx-background-color: #1a1a2e;
+}
+
+.alert .content {
+    -fx-background-color: #1a1a2e;
+}
+
+.dialog-pane {
+    -fx-background-color: #1a1a2e;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: #16213e;
+}
+
+.dialog-pane .button-bar .button {
+    -fx-background-color: #e94560;
+    -fx-text-fill: white;
+}

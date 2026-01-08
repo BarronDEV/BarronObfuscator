@@ -1,0 +1,49 @@
+# Barron License Manager
+
+# Build outputs
+build/
+out/
+target/
+*.jar
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+
+# Sensitive data - NEVER COMMIT THESE
+*.db
+*.sqlite
+licenses.db
+config.json
+application.properties
+
+# Generated files
+sifrelenmiş-pluginler/
+encrypted-plugins/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# User preferences
+*.prefs
+user-preferences.json
