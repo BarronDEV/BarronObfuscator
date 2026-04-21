@@ -123,7 +123,11 @@ public class ReferenceHider implements Transformer {
         InsnList replacement = new InsnList();
 
         // XOR-encrypt the class name
-        String className = methodInsn.owner.replace("/", ".");
+        // FIX: Use remapped name if available
+        String owner = methodInsn.owner;
+        String mappedOwner = context.getNewClassName(owner);
+        String className = mappedOwner.replace("/", ".");
+
         int classKey = random.nextInt(256);
         int[] encryptedClass = encryptString(className, classKey);
 
@@ -206,7 +210,11 @@ public class ReferenceHider implements Transformer {
         InsnList replacement = new InsnList();
 
         // XOR-encrypt the class name
-        String className = fieldInsn.owner.replace("/", ".");
+        // FIX: Use remapped name if available
+        String owner = fieldInsn.owner;
+        String mappedOwner = context.getNewClassName(owner);
+        String className = mappedOwner.replace("/", ".");
+
         int classKey = random.nextInt(256);
         int[] encryptedClass = encryptString(className, classKey);
 

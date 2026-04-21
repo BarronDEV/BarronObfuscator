@@ -87,14 +87,23 @@ public class DeadCodeInjector implements Transformer {
         boolean modified = false;
         this.randomEngine = context.getRandomEngine();
 
+        // Track used names for this class to prevent duplicates
+        Set<String> usedNames = new HashSet<>();
+        for (MethodNode mn : classNode.methods) {
+            usedNames.add(mn.name);
+        }
+
         // EXTREME RANDOMIZATION: Method count (2-15)
         int methodCount = randomEngine.getRandomInt(2, 15);
 
         for (int i = 0; i < methodCount; i++) {
-            MethodNode fakeMethod = generateExtremelyRandomMethod(classNode);
-            classNode.methods.add(fakeMethod);
-            context.incrementDeadCodeInjected();
-            modified = true;
+            MethodNode fakeMethod = generateExtremelyRandomMethod(classNode, usedNames);
+            if (fakeMethod != null) {
+                classNode.methods.add(fakeMethod);
+                usedNames.add(fakeMethod.name);
+                context.incrementDeadCodeInjected();
+                modified = true;
+            }
         }
 
         // EXTREME RANDOMIZATION: Field count (3-12)
@@ -118,9 +127,16 @@ public class DeadCodeInjector implements Transformer {
     /**
      * Generate extremely randomized fake method
      */
-    private MethodNode generateExtremelyRandomMethod(ClassNode owner) {
-        // Random name from pool
-        String name = fakeMethodNames.get(random.nextInt(fakeMethodNames.size()));
+    private MethodNode generateExtremelyRandomMethod(ClassNode owner, Set<String> usedNames) {
+        // Random name from pool - ensure uniqueness
+        String name;
+        int attempts = 0;
+        do {
+            name = fakeMethodNames.get(random.nextInt(fakeMethodNames.size()));
+            attempts++;
+            if (attempts > 50)
+                return null; // Give up if can't find unique name
+        } while (usedNames.contains(name));
 
         // Random access modifier combinations
         int access = Opcodes.ACC_PRIVATE;
@@ -133,14 +149,14 @@ public class DeadCodeInjector implements Transformer {
         if (random.nextFloat() < 0.1)
             access |= Opcodes.ACC_SYNTHETIC;
 
-        // Random return type from wider pool
-        String returnType = getRandomType();
+        // Random return type from wider pool (void is allowed for return)
+        String returnType = getRandomReturnType();
 
-        // Random parameters (0-5)
+        // Random parameters (0-5) - void NOT allowed for params
         StringBuilder params = new StringBuilder();
         int paramCount = random.nextInt(6);
         for (int i = 0; i < paramCount; i++) {
-            params.append(getRandomType());
+            params.append(getRandomParamType());
         }
 
         String desc = "(" + params + ")" + returnType;
@@ -157,9 +173,28 @@ public class DeadCodeInjector implements Transformer {
     }
 
     /**
-     * Get random type from expanded pool
+     * Get random type for PARAMETERS (void NOT allowed)
      */
-    private String getRandomType() {
+    private String getRandomParamType() {
+        return switch (random.nextInt(11)) {
+            case 0 -> "I";
+            case 1 -> "Z";
+            case 2 -> "J";
+            case 3 -> "D";
+            case 4 -> "F";
+            case 5 -> "B";
+            case 6 -> "S";
+            case 7 -> "C";
+            case 8 -> "Ljava/lang/String;";
+            case 9 -> "Ljava/lang/Object;";
+            default -> "[I";
+        };
+    }
+
+    /**
+     * Get random type for RETURN (void IS allowed)
+     */
+    private String getRandomReturnType() {
         return switch (random.nextInt(12)) {
             case 0 -> "V";
             case 1 -> "I";
@@ -366,9 +401,8 @@ public class DeadCodeInjector implements Transformer {
         if (random.nextFloat() < 0.1)
             access |= Opcodes.ACC_SYNTHETIC;
 
-        String desc = getRandomType();
-        if (desc.equals("V"))
-            desc = "I"; // Fields can't be void
+        // Use param type for fields (void not allowed)
+        String desc = getRandomParamType();
 
         // Random initial value for some types
         Object value = null;

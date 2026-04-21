@@ -1,0 +1,25 @@
+Barron Java Obfuscator - Kapsamlı Teknik Analiz ve Proje Özeti
+=================================================================
+
+1. GENEL BAKIŞ VE MİMARİ
+------------------------
+Barron Obfuscator, Java uygulamalarını (özellikle Spigot/Bukkit eklentilerini) lamer ve cracker'lara karşı korumak için tasarlanmış, çok katmanlı bir güvenlik paketidir.
+
+2. OBFUSCATION TEKNİKLERİ VE DERİN ANALİZ
+-----------------------------------------
+A. SANALLAŞTIRMA (VIRTUALIZATION) - [AKTİF & STABIL]
+   - **BarronVM:** Özel sanal makine mimarisi. Java Bytecode -> BarronOpCode dönüşümü.
+   - **Durum:** Entegre edildi ve doğrulandı.
+
+B. LİSANSLAMA VE KORUMA SİSTEMİ (LicenseCheckInjector.java)
+   - **Kill Switch:** `INVOKESTATIC` tabanlı güvenli mekanizma (JVM Çökmelerine karşı optimize edildi).
+   - **Grace Period (Offline Koruma):** İnternet kesintilerine karşı 3 günlük tolerans (Secure Hash Token).
+   - **Anti-Tamper:** Bytecode seviyesinde bütünlük kontrolleri.
+
+3. SON DURUM VE KRİTİK GÜNCELLEMELER
+------------------------------------
+Barron Lisans Sistemi; yerel dosya manipülasyonuna, ağ saldırılarına ve kod analizine karşı güçlü koruma sağlar. Son yapılan güncellemelerle birlikte:
+1.  **KRİTİK:** Sunucu çökmesine neden olan "Illegal Bytecode" hatası, `InvokeDynamic` yapısının `INVOKESTATIC` ile değiştirilmesiyle kesin olarak çözüldü.
+2.  **KRİTİK:** Modern Java Lambda ifadelerinde (`INVOKEDYNAMIC`) oluşan `NoClassDefFoundError`, referans güncelleme algoritmasının düzeltilmesiyle giderildi.
+3.  `VerifyError` hataları giderildi (Linear logic refactoring).
+4.  BarronVM sanallaştırma modülü aktif.

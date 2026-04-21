@@ -113,6 +113,17 @@ public class TransformContext {
         return additionalClasses;
     }
 
+    // Additional resources to add (encrypted data, etc.)
+    private final Map<String, byte[]> additionalResources = new LinkedHashMap<>();
+
+    public void addAdditionalResource(String name, byte[] data) {
+        additionalResources.put(name, data);
+    }
+
+    public Map<String, byte[]> getAdditionalResources() {
+        return additionalResources;
+    }
+
     // Remapping
     public void addClassRemapping(String oldName, String newName) {
         classRemapping.put(oldName, newName);
@@ -140,6 +151,17 @@ public class TransformContext {
 
     public String getNewFieldName(String className, String fieldName) {
         return fieldRemapping.getOrDefault(className + "." + fieldName, fieldName);
+    }
+
+    // Resources (e.g. plugin.yml)
+    private final Map<String, byte[]> resourceEntries = new LinkedHashMap<>();
+
+    public void addResourceEntry(String name, byte[] data) {
+        resourceEntries.put(name, data);
+    }
+
+    public Map<String, byte[]> getResourceEntries() {
+        return resourceEntries;
     }
 
     // Encrypted strings

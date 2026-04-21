@@ -19,6 +19,10 @@ public class ControlFlowObfuscator implements Transformer {
     // Field name for opaque predicate
     private String opaqueFieldName;
 
+    // Method size thresholds (to avoid "Method too large" error - JVM 64KB limit)
+    private static final int LARGE_METHOD_THRESHOLD = 2000; // Reduce obfuscation intensity
+    private static final int HUGE_METHOD_THRESHOLD = 4000; // Minimal obfuscation only
+
     @Override
     public String getName() {
         return "Control Flow Obfuscator";
@@ -45,10 +49,24 @@ public class ControlFlowObfuscator implements Transformer {
             if (method.name.startsWith("<"))
                 continue;
 
-            // Add fake conditional jumps
-            modified |= addFakeConditionals(classNode, method);
+            int methodSize = method.instructions.size();
 
-            // Add dead code blocks
+            // For huge methods: only add entry check (minimal protection)
+            if (methodSize > HUGE_METHOD_THRESHOLD) {
+                modified |= addDeadBranches(classNode, method);
+                continue;
+            }
+
+            // For large methods: reduced obfuscation (fewer fake conditionals)
+            if (methodSize > LARGE_METHOD_THRESHOLD) {
+                modified |= addDeadBranches(classNode, method);
+                // Add only 2% fake conditionals instead of 10%
+                modified |= addFakeConditionalsLite(classNode, method, 0.02f);
+                continue;
+            }
+
+            // Normal methods: full obfuscation
+            modified |= addFakeConditionals(classNode, method);
             modified |= addDeadBranches(classNode, method);
         }
 
@@ -78,6 +96,13 @@ public class ControlFlowObfuscator implements Transformer {
      * Add fake conditional jumps that never execute
      */
     private boolean addFakeConditionals(ClassNode classNode, MethodNode method) {
+        return addFakeConditionalsLite(classNode, method, 0.1f); // 10% chance
+    }
+
+    /**
+     * Lite version with configurable probability (for large methods)
+     */
+    private boolean addFakeConditionalsLite(ClassNode classNode, MethodNode method, float probability) {
         boolean modified = false;
         List<AbstractInsnNode> insertPoints = new ArrayList<>();
 
@@ -92,7 +117,7 @@ public class ControlFlowObfuscator implements Transformer {
             if (insn instanceof FrameNode)
                 continue;
 
-            if (random.nextFloat() < 0.1) { // 10% chance to add fake conditional
+            if (random.nextFloat() < probability) {
                 insertPoints.add(insn);
             }
         }

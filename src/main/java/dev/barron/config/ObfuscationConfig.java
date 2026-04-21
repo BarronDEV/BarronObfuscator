@@ -47,7 +47,9 @@ public class ObfuscationConfig {
 
     private boolean metadataRemoval = true;
 
-    private boolean classEncryption = false;
+    private boolean classEncryption = true;
+    private int serverPort = 8000;
+    private int webPort = 8080;
 
     // NEW SECURITY OPTIONS
     private boolean referenceHiding = true;
@@ -58,6 +60,24 @@ public class ObfuscationConfig {
     private boolean multiLayerEncryption = true;
 
     private boolean selfIntegrityCheck = true;
+
+    private boolean licenseVerification = true;
+
+    // License key to embed into the plugin (set during obfuscation)
+    private String embeddedLicenseKey = "";
+
+    // License server URL (where the plugin will verify)
+    private String licenseServerUrl = "http://localhost:8000/api/verify";
+
+    // License server domain (for Cloudflare protection) - e.g. "api.yourdomain.com"
+    // If set, this is used instead of auto-detected IP
+    private String licenseServerDomain = "";
+
+    // Load Balancer: Backup Server URL (Fallback if primary fails)
+    private String backupServerUrl = "";
+
+    // Dynamic Secret Key for Session Tokens
+    private String tokenSecret = "";
 
     // Exclusion patterns - classes/packages to skip
     private List<String> exclusions = new ArrayList<>(List.of(
@@ -218,6 +238,22 @@ public class ObfuscationConfig {
         this.classEncryption = v;
     }
 
+    public int getServerPort() {
+        return serverPort;
+    }
+
+    public void setServerPort(int serverPort) {
+        this.serverPort = serverPort;
+    }
+
+    public int getWebPort() {
+        return webPort;
+    }
+
+    public void setWebPort(int webPort) {
+        this.webPort = webPort;
+    }
+
     // NEW SECURITY OPTIONS GETTERS/SETTERS
     public boolean isReferenceHiding() {
         return referenceHiding;
@@ -257,6 +293,54 @@ public class ObfuscationConfig {
 
     public void setSelfIntegrityCheck(boolean v) {
         this.selfIntegrityCheck = v;
+    }
+
+    public boolean isLicenseVerification() {
+        return licenseVerification;
+    }
+
+    public void setLicenseVerification(boolean v) {
+        this.licenseVerification = v;
+    }
+
+    public String getEmbeddedLicenseKey() {
+        return embeddedLicenseKey;
+    }
+
+    public void setEmbeddedLicenseKey(String key) {
+        this.embeddedLicenseKey = key;
+    }
+
+    public String getLicenseServerUrl() {
+        return licenseServerUrl;
+    }
+
+    public void setLicenseServerUrl(String url) {
+        this.licenseServerUrl = url;
+    }
+
+    public String getLicenseServerDomain() {
+        return licenseServerDomain;
+    }
+
+    public void setLicenseServerDomain(String domain) {
+        this.licenseServerDomain = domain;
+    }
+
+    public String getBackupServerUrl() {
+        return backupServerUrl;
+    }
+
+    public void setBackupServerUrl(String url) {
+        this.backupServerUrl = url;
+    }
+
+    public String getTokenSecret() {
+        return tokenSecret;
+    }
+
+    public void setTokenSecret(String tokenSecret) {
+        this.tokenSecret = tokenSecret;
     }
 
     public List<String> getExclusions() {

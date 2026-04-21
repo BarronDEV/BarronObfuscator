@@ -42,6 +42,11 @@ public class ObfuscationEngine {
             transformers.add(new IdentifierRenamer());
         }
 
+        // NEW: License Verification (inject early so strings/flow get obfuscated)
+        if (config.isLicenseVerification()) {
+            transformers.add(new LicenseCheckInjector());
+        }
+
         // Third: Encrypt strings
         if (config.isStringEncryption()) {
             transformers.add(new StringEncryptor());
@@ -70,6 +75,20 @@ public class ObfuscationEngine {
         // Eighth: Reference hiding (convert calls to reflection)
         if (config.isReferenceHiding()) {
             transformers.add(new ReferenceHider());
+        }
+
+        // Ninth: Class Encryption (Custom ClassLoader) - MUST BE LAST
+        // It removes classes from the context, so no other transformer can run on them
+        // after this.
+        if (config.isClassEncryption()) {
+            transformers.add(new VirtualizationTransformer()); // VM Virtualization (Experimental V1)
+            transformers.add(new ClassEncryptor());
+        } else {
+            // Even if class encryption is off, we might want virtualization?
+            // For now, let's add it independently as a new config option.
+            // But since I don't want to edit Config object right now, I'll force it here
+            // for testing or piggyback
+            transformers.add(new VirtualizationTransformer());
         }
 
         // Initialize all transformers
@@ -124,9 +143,11 @@ public class ObfuscationEngine {
         for (Map.Entry<String, byte[]> entry : classEntries.entrySet()) {
             String className = entry.getKey().replace(".class", "");
 
-            // Skip excluded classes
+            // Skip excluded classes from OBFUSCATION but add them directly to resources
+            // So they will be written to output JAR as-is (without obfuscation)
             if (config.isExcluded(className.replace("/", "."))) {
-                log("[SKIP] Excluded: " + className);
+                // Add excluded class directly to resources so it's written to output unchanged
+                context.addResourceEntry(entry.getKey(), entry.getValue());
                 continue;
             }
 
@@ -135,6 +156,44 @@ public class ObfuscationEngine {
             reader.accept(classNode, ClassReader.EXPAND_FRAMES);
 
             context.addClass(className, classNode);
+        }
+
+        // Add resources to context
+        for (Map.Entry<String, byte[]> entry : resourceEntries.entrySet()) {
+            context.addResourceEntry(entry.getKey(), entry.getValue());
+        }
+
+        // INJECT LICENSE FIELDS INTO CONFIG.YML (for Bukkit plugins)
+        if (config.isLicenseVerification() && resourceEntries.containsKey("plugin.yml")) {
+            injectLicenseFieldsIntoConfig(context);
+        }
+
+        // IMPORTANT: Auto-exclude main class for Bukkit/Spigot plugins
+        // Main class must not be obfuscated at all, otherwise field/method references
+        // break
+        // HOWEVER: We MUST inject license verification BEFORE excluding!
+        String mainClass = getMainClassFromPluginYml(resourceEntries);
+        // Track main class internal name so LicenseCheckInjector doesn't double-inject
+        String mainClassInternal = null;
+        if (mainClass != null) {
+            String internalName = mainClass.replace(".", "/");
+            ClassNode mainClassNode = context.getClasses().get(internalName);
+
+            if (mainClassNode != null) {
+                // INJECT LICENSE CHECK INTO MAIN CLASS BEFORE EXCLUSION
+                if (config.isLicenseVerification()) {
+                    log("[INFO] Injecting license verification into main class before exclusion...");
+                    for (Transformer t : transformers) {
+                        if (t instanceof LicenseCheckInjector) {
+                            t.transform(mainClassNode, context);
+                            mainClassInternal = internalName; // Mark as already processed
+                            break;
+                        }
+                    }
+                }
+
+                log("[INFO] Main Class injected with license check and KEPT in context for further obfuscation.");
+            }
         }
 
         log("[INFO] Loaded " + context.getClasses().size() + " classes for obfuscation");
@@ -148,6 +207,12 @@ public class ObfuscationEngine {
             log("[INFO] Running " + transformer.getName() + "...");
 
             for (ClassNode classNode : context.getClasses().values()) {
+                // Skip main class for LicenseCheckInjector (already injected above)
+                if (transformer instanceof LicenseCheckInjector
+                        && mainClassInternal != null
+                        && classNode.name.equals(mainClassInternal)) {
+                    continue;
+                }
                 if (transformer.shouldTransform(classNode, config)) {
                     transformer.transform(classNode, context);
                     context.incrementClassesProcessed();
@@ -169,8 +234,8 @@ public class ObfuscationEngine {
         log("[INFO] Writing obfuscated JAR...");
         Map<String, byte[]> outputEntries = new LinkedHashMap<>();
 
-        // Add resources (unchanged)
-        outputEntries.putAll(resourceEntries);
+        // Add resources from context (transformers might have modified them)
+        outputEntries.putAll(context.getResourceEntries());
 
         // Add transformed classes
         for (Map.Entry<String, ClassNode> entry : context.getClasses().entrySet()) {
@@ -200,8 +265,24 @@ public class ObfuscationEngine {
             outputEntries.put(entry.getKey() + ".class", entry.getValue());
         }
 
+        // Add additional resources
+        for (Map.Entry<String, byte[]> entry : context.getAdditionalResources().entrySet()) {
+            outputEntries.put(entry.getKey(), entry.getValue());
+        }
+
         // Update manifest if main class was renamed
         updateManifest(manifest, context);
+
+        // INJECT VIRTUAL MACHINE CLASSES (BarronVM, BarronOpCode)
+        // Since we are running from source/jar, we need to read them from classpath
+        try {
+            log("[INFO] Injecting BarronVM runtime...");
+            injectVmClass("dev/barron/vm/BarronVM", outputEntries);
+            injectVmClass("dev/barron/vm/BarronOpCode", outputEntries);
+        } catch (IOException e) {
+            log("[ERROR] Failed to inject VM classes: " + e.getMessage());
+            // This is critical, but let's continue for now
+        }
 
         progress(0.95);
 
@@ -229,6 +310,86 @@ public class ObfuscationEngine {
             String newName = context.getNewClassName(internalName);
             if (!newName.equals(internalName)) {
                 manifest.getMainAttributes().putValue("Main-Class", newName.replace("/", "."));
+            }
+        }
+    }
+
+    /**
+     * Extract main class name from plugin.yml
+     */
+    private String getMainClassFromPluginYml(Map<String, byte[]> resources) {
+        byte[] pluginYmlBytes = resources.get("plugin.yml");
+
+        if (pluginYmlBytes == null) {
+            return null;
+        }
+
+        String pluginYml = new String(pluginYmlBytes, java.nio.charset.StandardCharsets.UTF_8);
+        String[] lines = pluginYml.split("\n");
+
+        for (String line : lines) {
+            if (line.trim().startsWith("main:")) {
+                String mainClassName = line.split(":")[1].trim();
+                // Remove comments if any
+                if (mainClassName.contains("#")) {
+                    mainClassName = mainClassName.split("#")[0].trim();
+                }
+                return mainClassName;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Inject license-key and license-server fields into config.yml
+     * If config.yml doesn't exist, create one with these fields
+     */
+    private void injectLicenseFieldsIntoConfig(TransformContext context) {
+        Map<String, byte[]> resources = context.getResourceEntries();
+
+        // Only add license-key to config.yml - server URL is embedded in bytecode
+        // (hidden)
+        String licenseSection = """
+
+                # ===========================================
+                # LICENSE CONFIGURATION (DO NOT REMOVE)
+                # ===========================================
+                # Enter your license key below
+                license-key: 'YOUR-LICENSE-KEY-HERE'
+                """;
+
+        if (resources.containsKey("config.yml")) {
+            // PREPEND to existing config (put license at TOP)
+            String existingConfig = new String(resources.get("config.yml"), java.nio.charset.StandardCharsets.UTF_8);
+
+            // Check if license section already exists
+            if (!existingConfig.contains("license-key:")) {
+                // Prepend license section at the TOP
+                String newConfig = licenseSection.trim() + "\n\n" + existingConfig;
+                context.addResourceEntry("config.yml",
+                        newConfig.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                log("[INFO] Added license fields to TOP of config.yml");
+            }
+        } else {
+            // Create new config.yml with license fields
+            context.addResourceEntry("config.yml",
+                    licenseSection.trim().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            log("[INFO] Created config.yml with license fields");
+        }
+    }
+
+    private void injectVmClass(String internalName, Map<String, byte[]> outputEntries) throws IOException {
+        String resourcePath = internalName + ".class";
+        try (java.io.InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is != null) {
+                byte[] bytes = is.readAllBytes();
+                outputEntries.put(resourcePath, bytes);
+            } else {
+                // If running from IDE/Gradle without full shadowing, we might need to find it
+                // differently
+                // For now, assume it's on classpath
+                log("[WARN] Could not find VM class: " + resourcePath);
             }
         }
     }

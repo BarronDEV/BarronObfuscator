@@ -1,0 +1,2304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barron Customer Panel</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #e94560;
+            --secondary: #16213e;
+            --bg: #1a1a2e;
+            --text: #ffffff;
+            --text-muted: #8892b0;
+            --success: #00aa55;
+            --error: #ff4d4d;
+            --warning: #ffaa00;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        /* AUTH SECTION */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .auth-box {
+            background: var(--secondary);
+            padding: 40px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        .logo-img {
+            width: 80px;
+            height: auto;
+            display: block;
+            margin: 0 auto 15px auto;
+            filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+        }
+
+
+        .logo {
+            color: var(--primary);
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background: #0f3460;
+            border: 1px solid #334460;
+            border-radius: 6px;
+            color: white;
+            outline: none;
+            font-size: 14px;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: var(--primary);
+        }
+
+        input.error {
+            border-color: var(--error);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .link {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-top: 15px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .link:hover {
+            color: var(--primary);
+        }
+
+        /* TOGGLE SWITCH */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-switch .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #4a4a5a;
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+
+        .toggle-switch .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked+.slider {
+            background-color: var(--success);
+        }
+
+        .toggle-switch input:checked+.slider:before {
+            transform: translateX(24px);
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 15px;
+            background: var(--bg);
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .toggle-row .label {
+            font-weight: 500;
+        }
+
+        .toggle-row .desc {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        /* DASHBOARD GRID */
+        .dashboard {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            background: var(--secondary);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            width: 260px;
+            min-width: 260px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar-item {
+            padding: 15px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: 0.3s;
+            border-radius: 6px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-item:hover,
+        .sidebar-item.active {
+            background: rgba(233, 69, 96, 0.1);
+            color: var(--primary);
+        }
+
+        .sidebar-item i {
+            width: 20px;
+        }
+
+        .sidebar-divider {
+            height: 1px;
+            background: #334460;
+            margin: 15px 0;
+        }
+
+        .sidebar-section {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            padding: 10px 15px;
+            letter-spacing: 1px;
+        }
+
+        .content {
+            flex: 1;
+            padding: 40px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .content-inner {
+            flex: 1;
+        }
+
+        /* Footer Styles */
+        .footer {
+            margin-top: auto;
+            padding: 30px 0;
+            border-top: 1px solid #334460;
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 15px;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            font-size: 24px;
+            transition: color 0.3s, transform 0.3s;
+        }
+
+        .footer-link:hover {
+            color: var(--primary);
+            transform: scale(1.2);
+        }
+
+        .footer-link.disabled {
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        .footer-text {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        h2 {
+            color: var(--primary);
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        /* CARDS & FORMS */
+        .card {
+            background: var(--secondary);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+            max-width: 500px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .form-row>* {
+            flex: 1;
+        }
+
+        /* LICENSE ITEMS */
+        .license-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .license-info h4 {
+            margin: 0 0 5px 0;
+        }
+
+        .license-info p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-family: monospace;
+        }
+
+        .btn-sm {
+            width: auto;
+            padding: 8px 15px;
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--error);
+        }
+
+        .btn-success {
+            background: var(--success);
+        }
+
+        /* TABLES */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #334460;
+        }
+
+        th {
+            color: var(--text-muted);
+            font-weight: normal;
+            font-size: 13px;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* PRODUCT CARDS */
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .product-card {
+            background: var(--secondary);
+            border-radius: 10px;
+            padding: 25px;
+            transition: 0.3s;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .product-card h3 {
+            margin: 0 0 10px 0;
+            color: var(--text);
+        }
+
+        .product-card p {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin: 0 0 15px 0;
+        }
+
+        .product-price {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        /* MODAL */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: var(--secondary);
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+        }
+
+        .close-modal {
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 24px;
+        }
+
+        .close-modal:hover {
+            color: var(--primary);
+        }
+
+        /* BADGES */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-success {
+            background: rgba(0, 170, 85, 0.2);
+            color: var(--success);
+        }
+
+        .badge-error {
+            background: rgba(255, 77, 77, 0.2);
+            color: var(--error);
+        }
+
+        .badge-warning {
+            background: rgba(255, 170, 0, 0.2);
+            color: var(--warning);
+        }
+
+        .badge-admin {
+            background: rgba(233, 69, 96, 0.2);
+            color: var(--primary);
+        }
+
+        /* STATS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--secondary);
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-card i {
+            font-size: 32px;
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+
+        .stat-card h3 {
+            margin: 0;
+            font-size: 32px;
+        }
+
+        .stat-card p {
+            color: var(--text-muted);
+            margin: 5px 0 0 0;
+        }
+
+        /* MESSAGE */
+        .msg {
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        .msg.success {
+            color: var(--success);
+        }
+
+        .msg.error {
+            color: var(--error);
+        }
+
+        /* HIDDEN */
+        .hidden {
+            display: none !important;
+        }
+
+        .d-flex {
+            display: flex !important;
+        }
+
+        /* TABS */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #334460;
+            padding-bottom: 10px;
+        }
+
+        .tab-btn {
+            width: auto;
+            background: transparent;
+            color: var(--text-muted);
+            padding: 8px 20px;
+            margin: 0;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- AUTH VIEWS -->
+    <div id="auth-app">
+        <!-- Login -->
+        <div id="view-login" class="auth-container">
+            <div class="auth-box">
+                <img src="logo.png" alt="Barron Logo" class="logo-img">
+                <h3>Login</h3>
+                <div id="login-fields">
+                    <input type="text" id="login-user" placeholder="Username or Email">
+                    <input type="password" id="login-pass" placeholder="Password">
+                </div>
+                <div id="login-2fa-field" class="hidden">
+                    <p style="color: var(--text-muted); font-size: 14px;">Enter 2FA Code</p>
+                    <input type="text" id="login-code" placeholder="000000" maxlength="6"
+                        style="text-align: center; letter-spacing: 5px;">
+                </div>
+                <button onclick="login()" id="login-btn">Login</button>
+                <div id="login-links">
+                    <div class="link" onclick="showView('view-register')">Don't have an account? Register</div>
+                    <div class="link" onclick="showView('view-forgot')">Forgot password?</div>
+                </div>
+                <p id="login-msg" class="msg"></p>
+
+                <!-- Login Footer -->
+                <div class="footer" style="padding-bottom: 0;">
+                    <div class="footer-links">
+                        <a id="login-footer-discord" href="#" target="_blank" class="footer-link disabled"
+                            title="Discord">
+                            <i class="fab fa-discord"></i>
+                        </a>
+                        <a id="login-footer-spigot" href="#" target="_blank" class="footer-link disabled"
+                            title="SpigotMC">
+                            <i class="fas fa-cube"></i>
+                        </a>
+                        <a id="login-footer-builtbybit" href="#" target="_blank" class="footer-link disabled"
+                            title="BuiltByBit">
+                            <i class="fas fa-shopping-bag"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Register -->
+        <div id="view-register" class="auth-container hidden">
+            <div class="auth-box">
+                <img src="logo.png" alt="Barron Logo" class="logo-img">
+                <h3>Create Account</h3>
+                <input type="text" id="reg-user" placeholder="Username (3-50 chars, letters/numbers/_)">
+                <input type="email" id="reg-email" placeholder="Email">
+                <input type="password" id="reg-pass" placeholder="Password (min 6 chars)">
+                <input type="password" id="reg-confirm" placeholder="Confirm Password">
+                <button onclick="register()">Create Account</button>
+                <div class="link" onclick="showView('view-login')">Already have an account? Login</div>
+                <p id="reg-msg" class="msg"></p>
+            </div>
+        </div>
+
+        <!-- Forgot Password -->
+        <div id="view-forgot" class="auth-container hidden">
+            <div class="auth-box">
+                <img src="logo.png" alt="Barron Logo" class="logo-img">
+                <h3>Reset Password</h3>
+                <p style="color: var(--text-muted); font-size: 14px;">Enter your email to receive a reset link</p>
+                <input type="email" id="forgot-email" placeholder="Email">
+                <button onclick="forgotPassword()">Send Reset Link</button>
+                <div class="link" onclick="showView('view-login')">Back to Login</div>
+                <p id="forgot-msg" class="msg"></p>
+            </div>
+        </div>
+
+        <!-- Reset Password -->
+        <div id="view-reset" class="auth-container hidden">
+            <div class="auth-box">
+                <img src="logo.png" alt="Barron Logo" class="logo-img">
+                <h3>Set New Password</h3>
+                <input type="password" id="reset-pass" placeholder="New Password (min 6 chars)">
+                <input type="password" id="reset-confirm" placeholder="Confirm New Password">
+                <button onclick="resetPassword()">Reset Password</button>
+                <div class="link" onclick="showView('view-login')">Back to Login</div>
+                <p id="reset-msg" class="msg"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- DASHBOARD VIEW -->
+    <div id="view-dashboard" class="dashboard hidden">
+        <div class="sidebar">
+            <img src="logo.png" alt="Barron Logo" class="logo-img" style="width: 50px; margin-bottom: 20px;">
+
+            <div class="sidebar-item active" onclick="switchTab('tab-profile')">
+                <i class="fas fa-user"></i> Profile
+            </div>
+            <div class="sidebar-item" onclick="switchTab('tab-licenses')">
+                <i class="fas fa-key"></i> Licenses
+            </div>
+            <div class="sidebar-item" onclick="switchTab('tab-shop')">
+                <i class="fas fa-shopping-cart"></i> Shop
+            </div>
+
+            <!-- Admin Section (visible only to admins) -->
+            <div id="admin-section" class="hidden">
+                <div class="sidebar-divider"></div>
+                <div class="sidebar-section">Admin</div>
+                <div class="sidebar-item" onclick="switchTab('tab-admin-dashboard')">
+                    <i class="fas fa-chart-bar"></i> Dashboard
+                </div>
+                <div class="sidebar-item" onclick="switchTab('tab-admin-users')">
+                    <i class="fas fa-users"></i> Users
+                </div>
+                <div class="sidebar-item" onclick="switchTab('tab-admin-products')">
+                    <i class="fas fa-box"></i> Products
+                </div>
+                <div class="sidebar-item" onclick="switchTab('tab-admin-orders')">
+                    <i class="fas fa-receipt"></i> Orders
+                </div>
+                <div class="sidebar-item" onclick="switchTab('tab-admin-logs')">
+                    <i class="fas fa-history"></i> Logs
+                </div>
+                <div class="sidebar-item" onclick="switchTab('tab-admin-settings')">
+                    <i class="fas fa-cog"></i> Settings
+                </div>
+            </div>
+
+            <div style="flex-grow: 1;"></div>
+            <div class="sidebar-item" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </div>
+
+            <!-- Footer in Sidebar for persistence -->
+            <div class="footer" style="padding: 20px 0; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 20px;">
+                <div class="footer-links" style="justify-content: center; gap: 15px;">
+                    <a id="footer-discord" href="#" target="_blank" class="footer-link disabled" title="Discord">
+                        <i class="fab fa-discord"></i>
+                    </a>
+                    <a id="footer-spigot" href="#" target="_blank" class="footer-link disabled" title="SpigotMC">
+                        <i class="fas fa-cube"></i>
+                    </a>
+                    <a id="footer-builtbybit" href="#" target="_blank" class="footer-link disabled" title="BuiltByBit">
+                        <i class="fas fa-shopping-bag"></i>
+                    </a>
+                </div>
+                <div class="footer-text" style="font-size: 11px; opacity: 0.6;">Powered by Barron Obfuscator</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Profile Tab -->
+            <div id="tab-profile">
+                <h2>My Profile</h2>
+                <div class="card">
+                    <div class="form-group">
+                        <label class="form-label">Balance</label>
+                        <h3 id="p-balance" style="margin:0; color:var(--success);">$0.00</h3>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" id="p-username">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="p-email">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">New Password (leave blank to keep current)</label>
+                        <input type="password" id="p-pass" placeholder="New password">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Confirm New Password</label>
+                        <input type="password" id="p-confirm" placeholder="Confirm new password">
+                    </div>
+                    <button onclick="updateProfile()">Save Changes</button>
+                    <p id="profile-msg" class="msg"></p>
+                </div>
+
+                <h3>Two-Factor Authentication</h3>
+                <div class="card">
+                    <div id="2fa-status-section">
+                        <p id="2fa-status-text" style="margin-bottom: 15px;">Status: <span
+                                style="color: var(--text-muted);">Loading...</span></p>
+                        <button id="btn-setup-2fa" onclick="setup2FA()" style="width: auto;">Enable 2FA</button>
+                        <button id="btn-disable-2fa" onclick="disable2FA()" class="btn-danger"
+                            style="width: auto; display:none;">Disable 2FA</button>
+                    </div>
+
+                    <div id="2fa-setup-area" class="hidden"
+                        style="margin-top: 20px; border-top: 1px solid #334460; padding-top: 20px;">
+                        <h4>Scan with Authenticator App</h4>
+                        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                            <div style="background: white; padding: 10px; border-radius: 4px;">
+                                <img id="2fa-qr-img" src="" alt="QR Code"
+                                    style="width: 150px; height: 150px; display: block;">
+                            </div>
+                            <div style="flex: 1;">
+                                <p style="font-size: 13px; color: var(--text-muted);">Or enter secret manually:</p>
+                                <code id="2fa-secret-text"
+                                    style="background: #111; padding: 5px; display: block; margin-bottom: 10px;"></code>
+                                <div class="form-group">
+                                    <label class="form-label">Verify Code</label>
+                                    <input type="text" id="verify-2fa-code" placeholder="000000" maxlength="6">
+                                </div>
+                                <button onclick="enable2FA()" style="width: auto;">Verify & Enable</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Licenses Tab -->
+            <div id="tab-licenses" class="hidden">
+                <h2>My Licenses</h2>
+                <div class="card">
+                    <h4>🔗 Link a License</h4>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="add-key" placeholder="Enter License Key" style="margin:0;">
+                        <button class="btn-sm" onclick="addLicense()">Add License</button>
+                    </div>
+                    <p id="add-msg" class="msg"></p>
+                </div>
+                <div id="license-list"></div>
+            </div>
+
+            <!-- Shop Tab -->
+            <div id="tab-shop" class="hidden">
+                <h2>Product Shop</h2>
+                <div id="shop-products" class="products-grid">
+                    <p style="color: var(--text-muted);">Loading products...</p>
+                </div>
+            </div>
+
+            <!-- Admin Dashboard -->
+            <div id="tab-admin-dashboard" class="hidden">
+                <h2>Admin Dashboard</h2>
+                <div id="admin-stats" class="stats-grid"></div>
+            </div>
+
+            <!-- Admin Users -->
+            <div id="tab-admin-users" class="hidden">
+                <h2>User Management</h2>
+                <div class="card">
+                    <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                        <input type="text" id="user-search" placeholder="Search username..."
+                            style="margin:0; max-width: 300px;" onkeyup="if(event.key==='Enter') loadAdminUsers()">
+                        <button class="btn-sm" style="width: auto;" onclick="loadAdminUsers()"><i
+                                class="fas fa-search"></i> Search</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Admin Products -->
+            <div id="tab-admin-products" class="hidden">
+                <h2>Product Management</h2>
+                <div class="card">
+                    <button class="btn-sm btn-success" onclick="openProductModal()">
+                        <i class="fas fa-plus"></i> Add Product
+                    </button>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Price</th>
+                                <th>Action</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="products-table"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Admin Orders -->
+            <div id="tab-admin-orders" class="hidden">
+                <h2>Orders</h2>
+                <div class="card">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>User</th>
+                                <th>Product</th>
+                                <th>Amount</th>
+                                <th>Provider</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-table"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Admin Payments -->
+            <div id="tab-admin-payments" class="hidden">
+                <h2>Payment Settings</h2>
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="showPaymentTab('stripe')">Stripe</button>
+                    <button class="tab-btn" onclick="showPaymentTab('shopier')">Shopier</button>
+                    <button class="tab-btn" onclick="showPaymentTab('paytr')">PayTR</button>
+                </div>
+                <div id="payment-forms"></div>
+            </div>
+
+            <!-- Admin Logs -->
+            <div id="tab-admin-logs" class="hidden">
+                <h2>System Logs</h2>
+                <div class="card">
+                    <table style="font-size: 13px;">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Admin</th>
+                                <th>Action</th>
+                                <th>Target</th>
+                                <th>Details</th>
+                                <th>IP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Admin Settings -->
+            <div id="tab-admin-settings" class="hidden">
+                <h2>System Settings</h2>
+
+                <div class="card">
+                    <div class="settings-tabs">
+                        <button class="tab-btn active" onclick="showSettingsTab('sys')">System</button>
+                        <button class="tab-btn" onclick="showSettingsTab('smtp')">SMTP / Email</button>
+                        <button class="tab-btn" onclick="showSettingsTab('pay')">Payment</button>
+                    </div>
+
+                    <div id="set-sys" class="settings-content active">
+                        <h3>System Settings / Failover</h3>
+                        <div class="card">
+                            <div class="toggle-row">
+                                <div>
+                                    <div class="label">Enable Failover / Remote Backup</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="sys-failover">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Secondary Host</label>
+                                <input type="text" id="sys-sec-host" placeholder="192.168.1.50">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Port</label>
+                                <input type="number" id="sys-sec-port" placeholder="3306" value="3306">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">User</label>
+                                <input type="text" id="sys-sec-user" placeholder="root">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Password</label>
+                                <input type="password" id="sys-sec-pass" placeholder="Password">
+                            </div>
+                            <button onclick="saveSystemSettings()">Save System Settings</button>
+                        </div>
+
+                        <h3 style="margin-top: 30px;">Footer Links</h3>
+                        <div class="card">
+                            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 15px;">
+                                Leave empty to hide the link. Links will appear in the footer of the customer panel.
+                            </p>
+                            <div class="form-group">
+                                <label class="form-label"><i class="fab fa-discord"></i> Discord URL</label>
+                                <input type="text" id="sys-link-discord" placeholder="https://discord.gg/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label"><i class="fas fa-cube"></i> SpigotMC URL</label>
+                                <input type="text" id="sys-link-spigot" placeholder="https://spigotmc.org/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label"><i class="fas fa-shopping-bag"></i> BuiltByBit URL</label>
+                                <input type="text" id="sys-link-builtbybit" placeholder="https://builtbybit.com/...">
+                            </div>
+                            <button onclick="saveFooterLinks()">Save Footer Links</button>
+                        </div>
+                    </div>
+
+                    <div id="set-smtp" class="settings-content" style="display: none;">
+                        <h3>SMTP Configuration</h3>
+                        <div id="smtp-forms">Loading...</div>
+                    </div>
+
+                    <div id="set-pay" class="settings-content" style="display: none;">
+                        <h3>Payment Gateway Settings</h3>
+                        <div id="payment-settings-forms">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer moved to sidebar -->
+
+        </div>
+    </div>
+
+    <!-- IP Modal -->
+    <div id="ip-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Manage IPs</h3>
+                <span class="close-modal" onclick="closeModal('ip-modal')">&times;</span>
+            </div>
+            <p style="color: var(--text-muted); font-size: 13px;">Allowed IPs (Max 2)</p>
+            <input type="hidden" id="modal-lid">
+            <input type="text" id="ip-1" placeholder="IP Address 1">
+            <input type="text" id="ip-2" placeholder="IP Address 2 (Optional)">
+            <button onclick="saveIps()">Save IPs</button>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div id="product-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="product-modal-title">Add Product</h3>
+                <span class="close-modal" onclick="closeModal('product-modal')">&times;</span>
+            </div>
+            <input type="hidden" id="product-id">
+            <div class="form-group">
+                <label class="form-label">Product Name *</label>
+                <input type="text" id="product-name" placeholder="Product Name">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea id="product-desc" rows="3" placeholder="Product description..."></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Price *</label>
+                    <input type="number" id="product-price" step="0.01" placeholder="9.99">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Currency</label>
+                    <select id="product-currency">
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="TRY">TRY</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Action Type</label>
+                <select id="product-action-type" onchange="toggleActionConfig()">
+                    <option value="REDIRECT">Redirect to URL</option>
+                    <option value="LICENSE">Generate License</option>
+                    <option value="CUSTOM">Custom</option>
+                </select>
+            </div>
+            <div class="form-group" id="action-config-group">
+                <label class="form-label">Redirect URL / Config</label>
+                <input type="text" id="product-action-config" placeholder="https://...">
+            </div>
+            <div class="form-group" id="plugin-select-group" style="display:none;">
+                <label class="form-label">Plugin (Lisans için) *</label>
+                <select id="product-plugin-id">
+                    <option value="">-- Plugin Seçin --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label"><i class="fas fa-file-upload"></i> Product File (Optional)</label>
+                <input type="file" id="product-file" style="padding: 8px;">
+                <p id="product-current-file" style="font-size: 12px; color: var(--text-muted); margin: 5px 0;"></p>
+            </div>
+            <button onclick="saveProduct()">Save Product</button>
+        </div>
+    </div>
+
+    <!-- Checkout Modal -->
+    <div id="checkout-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Select Payment Method</h3>
+                <span class="close-modal" onclick="closeModal('checkout-modal')">&times;</span>
+            </div>
+            <input type="hidden" id="checkout-product-id">
+            <p id="checkout-product-info" style="color: var(--text-muted);"></p>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+                <button id="pay-btn-balance" onclick="checkout('BALANCE')"
+                    style="background: var(--warning); display:none;">
+                    <i class="fas fa-wallet"></i> Pay with Balance <span id="checkout-balance-amt"></span>
+                </button>
+                <button id="pay-btn-stripe" onclick="checkout('STRIPE')"><i class="fab fa-stripe"></i> Pay with
+                    Stripe</button>
+                <button id="pay-btn-shopier" onclick="checkout('SHOPIER')" style="background: #4CAF50;">Pay with
+                    Shopier</button>
+                <button id="pay-btn-paytr" onclick="checkout('PAYTR')" style="background: #1976D2;">Pay with
+                    PayTR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Edit User Modal -->
+    <div id="user-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit User</h3>
+                <span class="close-modal" onclick="closeModal('user-modal')">&times;</span>
+            </div>
+            <input type="hidden" id="edit-user-id">
+            <div class="form-group">
+                <label class="form-label">Username</label>
+                <input type="text" id="edit-user-name" disabled style="opacity: 0.7;">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Balance ($)</label>
+                <input type="number" id="edit-user-balance" step="0.01">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Role</label>
+                <select id="edit-user-role">
+                    <option value="USER">User</option>
+                    <option value="ADMIN">Admin</option>
+                </select>
+            </div>
+            <div class="form-group" style="display: flex; align-items: center; justify-content: space-between;">
+                <label class="form-label" style="margin: 0;">Active Account</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="edit-user-active">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <button onclick="saveUserEdit()">Save Changes</button>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let csrfToken = '';
+        let isAdmin = false;
+        let resetToken = '';
+
+        // --- Navigation ---
+        function showView(id) {
+            document.querySelectorAll('.auth-container').forEach(el => el.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function switchTab(id) {
+            // Hide all direct children of content EXCEPT footer (if any remains)
+            document.querySelectorAll('.content > div:not(.footer)').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById(id);
+            if (target) target.classList.remove('hidden');
+
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+
+            // Load data based on tab
+            if (id === 'tab-profile') loadProfile();
+            if (id === 'tab-licenses') loadLicenses();
+            if (id === 'tab-shop') loadShop();
+            if (id.startsWith('tab-admin')) { // Changed from specific IDs to startsWith for admin tabs
+                if (id === 'tab-admin-dashboard') loadAdminStats();
+                if (id === 'tab-admin-users') loadAdminUsers();
+                if (id === 'tab-admin-products') loadAdminProducts();
+                if (id === 'tab-admin-orders') loadAdminOrders();
+                if (id === 'tab-admin-payments') loadPaymentSettings();
+                if (id === 'tab-admin-logs') loadAdminLogs();
+                if (id === 'tab-admin-settings') loadSystemSettings(); // Added this line
+            }
+        }
+
+        // --- API Request Helper ---
+        async function request(endpoint, method = 'GET', body = null) {
+            const token = localStorage.getItem('token');
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+            try {
+                const res = await fetch('/api' + endpoint, {
+                    method, headers, body: body ? JSON.stringify(body) : null
+                });
+                if (res.status === 401) {
+                    logout();
+                    return null;
+                }
+                return await res.json();
+            } catch (e) {
+                console.error(e);
+                return { error: 'Connection error' };
+            }
+        }
+
+        // --- Auth ---
+        async function login() {
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+            const code = document.getElementById('login-code').value;
+            const msgEl = document.getElementById('login-msg');
+
+            const body = { username: user, password: pass };
+            if (code && !document.getElementById('login-2fa-field').classList.contains('hidden')) {
+                body.code = code;
+            }
+
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+
+            if (data.require2fa) {
+                document.getElementById('login-fields').classList.add('hidden');
+                document.getElementById('login-links').classList.add('hidden');
+                document.getElementById('login-2fa-field').classList.remove('hidden');
+                document.getElementById('login-btn').innerText = 'Verify & Login';
+                msgEl.innerText = '';
+                return;
+            }
+
+            if (data.success) {
+                localStorage.setItem('token', data.token);
+                csrfToken = data.csrfToken;
+                isAdmin = data.role === 'ADMIN';
+                localStorage.setItem('csrfToken', csrfToken);
+                localStorage.setItem('isAdmin', isAdmin);
+                initDashboard();
+
+                // Reset Login form logic checks
+                document.getElementById('login-fields').classList.remove('hidden');
+                document.getElementById('login-links').classList.remove('hidden');
+                document.getElementById('login-2fa-field').classList.add('hidden');
+                document.getElementById('login-btn').innerText = 'Login';
+                document.getElementById('login-code').value = '';
+                document.getElementById('login-pass').value = '';
+            } else {
+                msgEl.className = 'msg error';
+                msgEl.innerText = data.error || 'Login failed';
+            }
+        }
+
+        async function register() {
+            const user = document.getElementById('reg-user').value.trim();
+            const email = document.getElementById('reg-email').value.trim().toLowerCase();
+            const pass = document.getElementById('reg-pass').value;
+            const confirm = document.getElementById('reg-confirm').value;
+            const msgEl = document.getElementById('reg-msg');
+
+            // Client-side validation
+            if (user.length < 3 || user.length > 50) {
+                msgEl.className = 'msg error';
+                msgEl.innerText = 'Username must be 3-50 characters';
+                return;
+            }
+            if (!/^[a-zA-Z0-9_]+$/.test(user)) {
+                msgEl.className = 'msg error';
+                msgEl.innerText = 'Username can only contain letters, numbers, and underscores';
+                return;
+            }
+            if (!isValidEmail(email)) {
+                msgEl.className = 'msg error';
+                msgEl.innerText = 'Please enter a valid email address';
+                return;
+            }
+            if (pass.length < 6) {
+                msgEl.className = 'msg error';
+                msgEl.innerText = 'Password must be at least 6 characters';
+                return;
+            }
+            if (pass !== confirm) {
+                msgEl.className = 'msg error';
+                msgEl.innerText = 'Passwords do not match';
+                return;
+            }
+
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, email, password: pass, confirmPassword: confirm })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                msgEl.className = 'msg success';
+                msgEl.innerText = 'Account created! Please login.';
+                setTimeout(() => showView('view-login'), 1500);
+            } else {
+                msgEl.className = 'msg error';
+                msgEl.innerText = data.error || 'Registration failed';
+            }
+        }
+
+        // Email validation function
+        function isValidEmail(email) {
+            if (!email || email.length < 5 || email.length > 254) return false;
+            if (email.includes('..') || email.startsWith('.') || email.includes(' ')) return false;
+
+            // RFC 5322 compliant regex
+            const emailRegex = /^[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,10}$/;
+            if (!emailRegex.test(email)) return false;
+
+            const parts = email.split('@');
+            if (parts.length !== 2) return false;
+
+            const [localPart, domain] = parts;
+            if (localPart.length > 64 || localPart.length === 0) return false;
+            if (domain.startsWith('-') || domain.endsWith('-') || domain.startsWith('.')) return false;
+
+            // Common typos
+            const invalidDomains = ['gamil.com', 'gmial.com', 'gnail.com', 'gmal.com', 'gmail.con',
+                'hotmal.com', 'hotmail.con', 'yaho.com', 'yahoo.con',
+                'outlok.com', 'outlook.con', 'test.test'];
+            if (invalidDomains.includes(domain.toLowerCase())) return false;
+
+            return true;
+        }
+
+        async function forgotPassword() {
+            const email = document.getElementById('forgot-email').value;
+            const msgEl = document.getElementById('forgot-msg');
+
+            const res = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const data = await res.json();
+
+            msgEl.className = 'msg success';
+            msgEl.innerText = data.message || 'Check your email for reset link';
+
+            // NOTE: Auto-jump removed. User must check email.
+        }
+
+        async function resetPassword() {
+            const pass = document.getElementById('reset-pass').value;
+            const confirm = document.getElementById('reset-confirm').value;
+            const msgEl = document.getElementById('reset-msg');
+
+            const res = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: resetToken, password: pass, confirmPassword: confirm })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                msgEl.className = 'msg success';
+                msgEl.innerText = 'Password reset! Please login.';
+                setTimeout(() => showView('view-login'), 1500);
+            } else {
+                msgEl.className = 'msg error';
+                msgEl.innerText = data.error || 'Reset failed';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('csrfToken');
+            localStorage.removeItem('isAdmin');
+            csrfToken = '';
+            isAdmin = false;
+            document.getElementById('auth-app').classList.remove('hidden');
+            document.getElementById('view-dashboard').classList.remove('d-flex');
+            document.getElementById('view-dashboard').classList.add('hidden');
+            showView('view-login');
+        }
+
+        function initDashboard() {
+            if (!localStorage.getItem('token')) { logout(); return; }
+            csrfToken = localStorage.getItem('csrfToken') || '';
+            isAdmin = localStorage.getItem('isAdmin') === 'true';
+
+            document.getElementById('auth-app').classList.add('hidden');
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.getElementById('view-dashboard').classList.add('d-flex');
+
+            // Show admin section if admin, hide if not
+            if (isAdmin) {
+                document.getElementById('admin-section').classList.remove('hidden');
+            } else {
+                document.getElementById('admin-section').classList.add('hidden');
+            }
+
+            loadProfile();
+            loadFooterLinks();
+        }
+
+        // --- Profile ---
+        async function loadProfile() {
+            const data = await request('/user/profile');
+            if (data) {
+                document.getElementById('p-username').value = data.username || '';
+                document.getElementById('p-email').value = data.email || '';
+                document.getElementById('p-balance').innerText = '$' + (data.balance || 0).toFixed(2);
+                window.currentUserBalance = data.balance || 0;
+
+                // 2FA Status
+                const enabled = data.twoFactorEnabled;
+                const statusText = document.getElementById('2fa-status-text');
+                const btnSetup = document.getElementById('btn-setup-2fa');
+                const btnDisable = document.getElementById('btn-disable-2fa');
+
+                if (enabled) {
+                    statusText.innerHTML = 'Status: <span style="color: var(--success); font-weight: bold;">Enabled</span>';
+                    btnSetup.style.display = 'none';
+                    btnDisable.style.display = 'inline-block';
+                    document.getElementById('2fa-setup-area').classList.add('hidden');
+                } else {
+                    statusText.innerHTML = 'Status: <span style="color: var(--error);">Disabled</span>';
+                    btnSetup.style.display = 'inline-block';
+                    btnDisable.style.display = 'none';
+                }
+            }
+        }
+
+        async function setup2FA() {
+            const res = await request('/auth/2fa/setup', 'POST');
+            if (res && res.qrUrl) {
+                document.getElementById('2fa-setup-area').classList.remove('hidden');
+                document.getElementById('2fa-qr-img').src = res.qrUrl;
+                document.getElementById('2fa-secret-text').innerText = res.secret;
+            } else {
+                alert('Error starting 2FA setup');
+            }
+        }
+
+        async function enable2FA() {
+            const code = document.getElementById('verify-2fa-code').value;
+            if (!code) return;
+
+            const res = await request('/auth/2fa/enable', 'POST', { code });
+            if (res && res.success) {
+                alert('2FA Enabled Successfully!');
+                document.getElementById('2fa-setup-area').classList.add('hidden');
+                document.getElementById('verify-2fa-code').value = '';
+                loadProfile();
+            } else {
+                alert(res?.error || 'Verification failed');
+            }
+        }
+
+        async function disable2FA() {
+            if (!confirm('Are you sure you want to disable 2FA? This will reduce account security.')) return;
+            const res = await request('/auth/2fa/disable', 'POST');
+            if (res && res.success) {
+                loadProfile();
+            } else {
+                alert('Error disabling 2FA');
+            }
+        }
+
+        async function updateProfile() {
+            const username = document.getElementById('p-username').value;
+            const email = document.getElementById('p-email').value;
+            const pass = document.getElementById('p-pass').value;
+            const confirm = document.getElementById('p-confirm').value;
+            const msgEl = document.getElementById('profile-msg');
+
+            if (pass && pass !== confirm) {
+                msgEl.className = 'msg error';
+                msgEl.innerText = 'Passwords do not match';
+                return;
+            }
+
+            const res = await request('/user/profile', 'POST', { username, email, password: pass });
+            if (res && res.success) {
+                msgEl.className = 'msg success';
+                msgEl.innerText = 'Profile saved!';
+            } else {
+                msgEl.className = 'msg error';
+                msgEl.innerText = res?.error || 'Error saving profile';
+            }
+        }
+
+        // --- Licenses ---
+        async function loadLicenses() {
+            const list = document.getElementById('license-list');
+            list.innerHTML = '<p>Loading...</p>';
+            const data = await request('/user/licenses');
+            list.innerHTML = '';
+
+            if (!data || data.length === 0) {
+                list.innerHTML = '<p style="color:var(--text-muted); text-align:center;">No licenses found.</p>';
+                return;
+            }
+
+            data.forEach(lic => {
+                const ips = lic.ipList ? lic.ipList.split(',') : [];
+                const item = document.createElement('div');
+                item.className = 'license-item';
+                item.innerHTML = `
+                    <div class="license-info">
+                        <h4 style="margin-bottom: 8px;">${lic.pluginName || 'Unknown'}</h4>
+                        <div style="margin-bottom: 8px;">
+                            <span style="color: var(--text-muted); font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.5px;">License Key</span>
+                            <div style="font-family: monospace; font-size: 1.1em; color: var(--accent); background: rgba(0, 0, 0, 0.2); padding: 5px 10px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 2px;">
+                                ${lic.licenseKey}
+                            </div>
+                        </div>
+                        <p><small style="color: ${ips.length > 0 ? '#4caf50' : '#888'};"><i class="fas fa-network-wired"></i> ${ips.length}/2 IPs Active</small></p>
+                    </div>
+                    <div>
+                        <button class="btn-sm btn-outline" onclick="openIpModal(${lic.id}, '${ips[0] || ''}', '${ips[1] || ''}')">
+                            <i class="fas fa-cog"></i> Manage
+                        </button>
+                        <button class="btn-sm btn-outline" style="margin-left: 5px; background: rgba(0, 255, 0, 0.1); color: #0f0; border-color: #0f0;" onclick="downloadProduct(${lic.id})">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function downloadProduct(licenseId) {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Please login first');
+                return;
+            }
+            window.location.href = `/api/user/licenses/${licenseId}/download?token=${token}`;
+        }
+
+        async function addLicense() {
+            const key = document.getElementById('add-key').value;
+            if (!key) return;
+
+            const res = await request('/user/licenses/add', 'POST', { key });
+            const msg = document.getElementById('add-msg');
+            msg.innerText = res?.message || '';
+            msg.className = res?.success ? 'msg success' : 'msg error';
+
+            if (res?.success) {
+                document.getElementById('add-key').value = '';
+                loadLicenses();
+            }
+        }
+
+        // --- Shop ---
+        async function loadShop() {
+            const container = document.getElementById('shop-products');
+            container.innerHTML = '<p>Loading...</p>';
+
+            const data = await request('/products');
+            container.innerHTML = '';
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-muted);">No products available.</p>';
+                return;
+            }
+
+            data.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'product-card';
+                card.innerHTML = `
+                    <h3>${p.name}</h3>
+                    <p>${p.description || 'No description'}</p>
+                    <div class="product-price">${p.price} ${p.currency}</div>
+                    <button onclick="openCheckoutModal(${p.id}, '${p.name}', ${p.price}, '${p.currency}')">
+                        <i class="fas fa-shopping-cart"></i> Buy Now
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function openCheckoutModal(productId, name, price, currency) {
+            document.getElementById('checkout-product-id').value = productId;
+            document.getElementById('checkout-product-info').innerText = `${name} - ${price} ${currency}`;
+
+            // Hide all initially
+            document.getElementById('pay-btn-stripe').style.display = 'none';
+            document.getElementById('pay-btn-shopier').style.display = 'none';
+            document.getElementById('pay-btn-paytr').style.display = 'none';
+
+            document.getElementById('checkout-modal').style.display = 'flex';
+
+            // Fetch active
+            const res = await request('/payment/providers');
+            if (res) {
+                if (res.stripe) document.getElementById('pay-btn-stripe').style.display = 'flex';
+                if (res.shopier) document.getElementById('pay-btn-shopier').style.display = 'flex';
+                if (res.paytr) document.getElementById('pay-btn-paytr').style.display = 'flex';
+            }
+
+            // Show Balance Option
+            const balanceBtn = document.getElementById('pay-btn-balance');
+            const userBal = window.currentUserBalance || 0;
+            document.getElementById('checkout-balance-amt').innerText = `(Available: $${userBal.toFixed(2)})`;
+            balanceBtn.style.display = 'flex';
+
+            if (userBal < price) {
+                balanceBtn.disabled = true;
+                balanceBtn.style.opacity = '0.5';
+                balanceBtn.title = 'Insufficient balance';
+            } else {
+                balanceBtn.disabled = false;
+                balanceBtn.style.opacity = '1';
+            }
+        }
+
+        async function checkout(provider) {
+            const productId = parseInt(document.getElementById('checkout-product-id').value);
+            const res = await request('/payment/checkout', 'POST', { productId, provider });
+
+            if (res?.success) {
+                if (res.action === 'FORM_POST') {
+                    // Create hidden form and submit
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = res.url;
+                    form.style.display = 'none';
+
+                    for (const [key, value] of Object.entries(res.fields)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
+                    // Don't remove immediately to allow submission to complete
+                } else if (res.checkoutUrl) {
+                    // External payment provider - redirect
+                    window.location.href = res.checkoutUrl;
+                } else {
+                    // Balance payment - show success and close modal
+                    alert(res.message || 'Purchase successful!');
+                    closeModal('checkout-modal');
+                    loadProfile(); // Refresh balance
+                    loadLicenses(); // Refresh licenses
+                }
+            } else {
+                alert(res?.error || 'Checkout failed');
+            }
+        }
+
+        // --- Admin Functions ---
+        async function loadAdminStats() {
+            const res = await request('/admin/stats');
+            const container = document.getElementById('admin-stats');
+            if (res) {
+                container.innerHTML = `
+                    <div class="stat-card"><i class="fas fa-users"></i><h3>${res.totalUsers}</h3><p>Users</p></div>
+                    <div class="stat-card"><i class="fas fa-key"></i><h3>${res.totalLicenses}</h3><p>Licenses</p></div>
+                    <div class="stat-card"><i class="fas fa-box"></i><h3>${res.totalProducts}</h3><p>Products</p></div>
+                    <div class="stat-card"><i class="fas fa-receipt"></i><h3>${res.totalOrders}</h3><p>Orders</p></div>
+                `;
+            }
+        }
+
+        async function loadAdminUsers() {
+            const query = document.getElementById('user-search').value;
+            let url = '/admin/users';
+            if (query) url += '?q=' + encodeURIComponent(query);
+
+            const res = await request(url);
+            const tbody = document.getElementById('users-table');
+            tbody.innerHTML = '';
+            if (res) {
+                res.forEach(u => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${u.id}</td>
+                        <td>${u.username}</td>
+                        <td>${u.email}</td>
+                        <td><span class="badge ${u.role === 'ADMIN' ? 'badge-admin' : ''}">${u.role || 'USER'}</span></td>
+                        <td>
+                            <button class="btn-sm btn-outline" onclick="openUserModal(${u.id}, '${u.username}', ${u.balance || 0}, '${u.role}', ${u.isActive})">Edit</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        function openUserModal(id, username, balance, role, isActive) {
+            document.getElementById('edit-user-id').value = id;
+            document.getElementById('edit-user-name').value = username;
+            document.getElementById('edit-user-balance').value = balance;
+            document.getElementById('edit-user-role').value = role;
+            document.getElementById('edit-user-active').checked = (isActive === undefined || isActive === null) ? true : isActive;
+            document.getElementById('user-modal').style.display = 'flex';
+        }
+
+        async function saveUserEdit() {
+            const id = document.getElementById('edit-user-id').value;
+            const data = {
+                balance: parseFloat(document.getElementById('edit-user-balance').value),
+                role: document.getElementById('edit-user-role').value,
+                isActive: document.getElementById('edit-user-active').checked
+            };
+            const res = await request(`/admin/users/${id}`, 'POST', data);
+            if (res?.success) {
+                closeModal('user-modal');
+                loadAdminUsers();
+            } else {
+                alert('Update failed');
+            }
+        }
+
+        async function loadAdminProducts() {
+            const res = await request('/admin/products');
+            const tbody = document.getElementById('products-table');
+            tbody.innerHTML = '';
+            if (res) {
+                res.forEach(p => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${p.id}</td>
+                        <td>${p.name}</td>
+                        <td>${p.price} ${p.currency}</td>
+                        <td>${p.actionType}</td>
+                        <td><span class="badge ${p.isActive ? 'badge-success' : 'badge-error'}">${p.isActive ? 'Active' : 'Inactive'}</span></td>
+                        <td>
+                            <button class="btn-sm btn-outline" onclick="editProduct(${p.id})">Edit</button>
+                            <button class="btn-sm btn-danger" onclick="deleteProduct(${p.id})">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        function openProductModal(product = null) {
+            document.getElementById('product-modal-title').innerText = product ? 'Edit Product' : 'Add Product';
+            document.getElementById('product-id').value = product?.id || '';
+            document.getElementById('product-name').value = product?.name || '';
+            document.getElementById('product-desc').value = product?.description || '';
+            document.getElementById('product-price').value = product?.price || '';
+            document.getElementById('product-currency').value = product?.currency || 'USD';
+            document.getElementById('product-action-type').value = product?.actionType || 'REDIRECT';
+            document.getElementById('product-action-config').value = product?.actionConfig || '';
+            // Load plugins for dropdown
+            loadPluginsDropdown(product?.pluginId);
+            toggleActionConfig();
+
+            // File info
+            document.getElementById('product-file').value = '';
+            const currentFileEl = document.getElementById('product-current-file');
+            if (product?.fileName) {
+                currentFileEl.innerText = 'Current File: ' + product.fileName;
+            } else {
+                currentFileEl.innerText = '';
+            }
+
+            document.getElementById('product-modal').style.display = 'flex';
+        }
+
+        async function loadPluginsDropdown(selectedPluginId = null) {
+            const select = document.getElementById('product-plugin-id');
+            select.innerHTML = '<option value="">-- Plugin Seçin --</option>';
+            const res = await request('/admin/products'); // Plugins endpoint needed
+            // For now, we'll use a simple workaround - plugins should come from a dedicated endpoint
+            // We'll try to fetch from plugins table via admin/plugins if it exists
+            try {
+                const plugins = await request('/admin/plugins'); // If this endpoint exists
+                if (plugins && Array.isArray(plugins)) {
+                    plugins.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.textContent = p.name;
+                        if (selectedPluginId && p.id == selectedPluginId) opt.selected = true;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                console.log('Plugins endpoint not available');
+            }
+        }
+
+        function toggleActionConfig() {
+            const actionType = document.getElementById('product-action-type').value;
+            const configGroup = document.getElementById('action-config-group');
+            const pluginGroup = document.getElementById('plugin-select-group');
+
+            if (actionType === 'LICENSE') {
+                configGroup.style.display = 'none';
+                pluginGroup.style.display = 'block';
+            } else {
+                configGroup.style.display = 'block';
+                pluginGroup.style.display = 'none';
+            }
+        }
+
+        async function editProduct(id) {
+            const res = await request('/admin/products');
+            const product = res?.find(p => p.id === id);
+            if (product) openProductModal(product);
+        }
+
+        async function saveProduct() {
+            const id = document.getElementById('product-id').value;
+            const actionType = document.getElementById('product-action-type').value;
+            const fileInput = document.getElementById('product-file');
+
+            const data = {
+                name: document.getElementById('product-name').value,
+                description: document.getElementById('product-desc').value,
+                price: parseFloat(document.getElementById('product-price').value),
+                currency: document.getElementById('product-currency').value,
+                actionType: actionType,
+                actionConfig: actionType === 'LICENSE' ? '' : document.getElementById('product-action-config').value,
+                pluginId: actionType === 'LICENSE' ? parseInt(document.getElementById('product-plugin-id').value) : null,
+                isActive: true
+            };
+
+            // Validate plugin selection for LICENSE type
+            if (actionType === 'LICENSE' && !data.pluginId) {
+                alert('License tipi için plugin seçmelisiniz!');
+                return;
+            }
+
+            // Handle file upload
+            // Handle file upload check (but don't read content yet)
+            let hasFile = false;
+            let fileName = null;
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                /* 
+                // Increased limit due to streaming upload
+                if (file.size > 2048 * 1024 * 1024) { // 2GB limit matching server
+                    alert('File too large (Max 2GB)');
+                    return;
+                }
+                */
+                hasFile = true;
+                fileName = file.name;
+                data.fileName = fileName;
+                // Don't set fileData (Base64) - we stream it later
+            }
+
+            let result;
+            try {
+                if (id) {
+                    result = await request(`/admin/products/${id}`, 'PUT', data);
+                } else {
+                    result = await request('/admin/products', 'POST', data);
+                }
+            } catch (e) {
+                alert('Save failed: ' + e);
+                return;
+            }
+
+            if (result && result.success) {
+                const productId = result.id || id; // PUT might not return ID, use existing
+
+                // Step 2: Upload File if selected
+                if (hasFile && productId) {
+                    try {
+                        // Show uploading indicator (simple alert for now, ideally UI progress)
+                        // alert('Uploading file, please wait...'); 
+
+                        const file = fileInput.files[0];
+                        const uploadRes = await fetch(`/api/admin/products/${productId}/file`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                                'X-CSRF-Token': localStorage.getItem('csrfToken'),
+                                'X-File-Name': fileName
+                            },
+                            body: file // Streaming upload
+                        });
+
+                        if (!uploadRes.ok) {
+                            alert('Product metadata saved, but file upload failed.');
+                        } else {
+                            // alert('Product and file saved!');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert('Product saved, but file upload error occurred.');
+                    }
+                }
+
+                closeModal('product-modal');
+                loadAdminProducts();
+            }
+        }
+
+        async function deleteProduct(id) {
+            if (confirm('Delete this product?')) {
+                await request(`/admin/products/${id}`, 'DELETE');
+                loadAdminProducts();
+            }
+        }
+
+        async function loadAdminOrders() {
+            const res = await request('/admin/orders');
+            const tbody = document.getElementById('orders-table');
+            tbody.innerHTML = '';
+            if (res) {
+                res.forEach(o => {
+                    const tr = document.createElement('tr');
+                    const statusClass = o.status === 'COMPLETED' ? 'badge-success' :
+                        o.status === 'FAILED' ? 'badge-error' : 'badge-warning';
+                    tr.innerHTML = `
+                        <td>${o.id}</td>
+                        <td>${o.userId}</td>
+                        <td>${o.productId}</td>
+                        <td>${o.amount} ${o.currency}</td>
+                        <td>${o.paymentProvider}</td>
+                        <td><span class="badge ${statusClass}">${o.status}</span></td>
+                        <td>${new Date(o.createdAt).toLocaleDateString()}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        async function loadPaymentSettings() {
+            const container = document.getElementById('payment-forms');
+            container.innerHTML = `
+                <div class="card">
+                    <div class="form-group">
+                        <label class="form-label">API Key</label>
+                        <input type="password" id="payment-apikey" placeholder="API Key">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">API Secret</label>
+                        <input type="password" id="payment-apisecret" placeholder="API Secret">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Webhook Secret</label>
+                        <input type="password" id="payment-webhook" placeholder="Webhook Secret">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Merchant ID (for PayTR/Shopier)</label>
+                        <input type="text" id="payment-merchant" placeholder="Merchant ID">
+                    </div>
+                    <div class="form-row">
+                        <label><input type="checkbox" id="payment-enabled"> Enabled</label>
+                        <label><input type="checkbox" id="payment-testmode" checked> Test Mode</label>
+                    </div>
+                    <div id="shopier-help" style="display:none; margin-top: 15px; padding: 10px; background: rgba(76, 175, 80, 0.1); border-left: 3px solid #4CAF50;">
+                        <p style="font-weight: bold; font-size: 14px; margin-bottom: 5px;">Shopier Geri Dönüş Ayarı</p>
+                        <p style="font-size: 13px; color: var(--text-muted);">Shopier panelinizde veya API ayarlarınızda <b>Geri Dönüş URL (Return URL)</b> olarak aşağıdaki adresi kullanın:</p>
+                        <code style="display: block; background: rgba(0,0,0,0.3); padding: 5px; margin-top: 5px; font-size: 12px;">${window.location.origin}/api/payment/webhook/shopier</code>
+                    </div>
+                    <button onclick="savePaymentSettings()">Save Settings</button>
+                </div>
+            `;
+        }
+
+        let currentPaymentProvider = 'STRIPE';
+        function showPaymentTab(provider) {
+            currentPaymentProvider = provider.toUpperCase();
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+
+            // Toggle Shopier Help
+            const help = document.getElementById('shopier-help');
+            if (help) {
+                help.style.display = currentPaymentProvider === 'SHOPIER' ? 'block' : 'none';
+            }
+        }
+
+        async function savePaymentSettings() {
+            await request('/admin/payment-settings', 'POST', {
+                provider: currentPaymentProvider,
+                apiKey: document.getElementById('payment-apikey').value,
+                apiSecret: document.getElementById('payment-apisecret').value,
+                webhookSecret: document.getElementById('payment-webhook').value,
+                merchantId: document.getElementById('payment-merchant').value,
+                isEnabled: document.getElementById('payment-enabled').checked,
+                isTestMode: document.getElementById('payment-testmode').checked
+            });
+            alert('Settings saved!');
+        }
+
+        async function loadAdminLogs() {
+            const res = await request('/admin/logs');
+            const tbody = document.getElementById('logs-table');
+            tbody.innerHTML = '';
+            if (res) {
+                res.forEach(l => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${new Date(l.createdAt).toLocaleString()}</td>
+                        <td>${l.adminUsername || l.adminId}</td>
+                        <td>${l.action}</td>
+                        <td>${l.targetType || ''} ${l.targetId || ''}</td>
+                        <td>${l.details || '-'}</td>
+                        <td>${l.ipAddress || '-'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        /* ADMIN SETTINGS */
+        async function loadSystemSettings() {
+            const res = await request('/admin/settings');
+            if (res) {
+                document.getElementById('sys-failover').checked = res.failoverEnabled;
+                document.getElementById('sys-sec-host').value = res.secondaryHost || '';
+                document.getElementById('sys-sec-port').value = res.secondaryPort || 3306;
+                document.getElementById('sys-sec-user').value = res.secondaryUser || '';
+                // Note: We don't load current password for security, user sets new values
+            }
+        }
+
+        async function saveSystemSettings() {
+            const data = {
+                failoverEnabled: document.getElementById('sys-failover').checked,
+                secondaryHost: document.getElementById('sys-sec-host').value,
+                secondaryPort: parseInt(document.getElementById('sys-sec-port').value) || 3306,
+                secondaryUser: document.getElementById('sys-sec-user').value,
+                secondaryPass: document.getElementById('sys-sec-pass').value
+            };
+
+            const res = await request('/admin/settings', 'POST', data);
+            if (res?.success) {
+                alert('Settings saved!');
+            } else {
+                alert(res?.error || 'Error saving settings');
+            }
+        }
+
+        // Settings sub-tab switching
+        function showSettingsTab(tab) {
+            // Hide all settings content
+            document.querySelectorAll('.settings-content').forEach(el => {
+                el.style.display = 'none';
+                el.classList.remove('active');
+            });
+            // Remove active from all buttons
+            document.querySelectorAll('.settings-tabs .tab-btn').forEach(el => el.classList.remove('active'));
+
+            // Show selected tab
+            const targetId = 'set-' + tab;
+            const target = document.getElementById(targetId);
+            if (target) {
+                target.style.display = 'block';
+                target.classList.add('active');
+            }
+            // Add active to clicked button
+            event.target.classList.add('active');
+
+            // Load data for sub-tab
+            if (tab === 'sys') loadSystemSettings();
+            if (tab === 'smtp') loadSmtpSettings();
+            if (tab === 'pay') loadPaymentSettingsSubTab();
+        }
+
+        async function loadSystemSettings() {
+            try {
+                const res = await request('/admin/settings');
+                if (res) {
+                    document.getElementById('sys-failover').checked = res.failoverEnabled || false;
+                    document.getElementById('sys-sec-host').value = res.secondaryHost || '';
+                    document.getElementById('sys-sec-port').value = res.secondaryPort || 3306;
+                    document.getElementById('sys-sec-user').value = res.secondaryUser || '';
+                }
+            } catch (e) {
+                console.error('Error loading system settings:', e);
+            }
+        }
+
+        async function loadPaymentSettingsSubTab() {
+            const res = await request('/admin/payment-visibility');
+            const container = document.getElementById('payment-settings-forms');
+            if (res) {
+                container.innerHTML = `
+                    <div class="card">
+                        <p style="color: var(--text-muted); margin-bottom: 20px;">
+                            <i class="fas fa-shield-alt"></i> Ödeme sistemi kimlik bilgileri güvenlik nedeniyle sadece masaüstü uygulamasından düzenlenebilir.
+                            Buradan sadece hangi ödeme yöntemlerinin müşterilere gösterileceğini seçebilirsiniz.
+                        </p>
+                        <div class="payment-toggles">
+                            <div class="toggle-row">
+                                <div>
+                                    <div class="label">💳 Stripe</div>
+                                    <div class="desc">Uluslararası Kartlar</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="pay-stripe-active" ${res.stripeActive ? 'checked' : ''}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="toggle-row">
+                                <div>
+                                    <div class="label">🇹🇷 PayTR</div>
+                                    <div class="desc">Türk Kartları</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="pay-paytr-active" ${res.paytrActive ? 'checked' : ''}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="toggle-row">
+                                <div>
+                                    <div class="label">🛒 Shopier</div>
+                                    <div class="desc">E-Ticaret</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="pay-shopier-active" ${res.shopierActive ? 'checked' : ''}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <button onclick="savePaymentVisibility()" style="margin-top: 20px;">Kaydet</button>
+                    </div>
+                `;
+            }
+        }
+
+        async function savePaymentVisibility() {
+            const res = await request('/admin/payment-visibility', 'POST', {
+                stripeActive: document.getElementById('pay-stripe-active').checked,
+                paytrActive: document.getElementById('pay-paytr-active').checked,
+                shopierActive: document.getElementById('pay-shopier-active').checked
+            });
+            if (res?.success) {
+                alert('Ödeme yöntemi görünürlükleri kaydedildi!');
+            } else {
+                alert(res?.error || 'Kaydetme hatası!');
+            }
+        }
+
+        async function loadSmtpSettings() {
+            const res = await request('/admin/smtp-settings');
+            const container = document.getElementById('smtp-forms');
+            container.innerHTML = '';
+            if (res) {
+                container.innerHTML = `
+                    <div class="card">
+                        <div class="form-group">
+                            <label class="form-label">SMTP Host</label>
+                            <input type="text" id="smtp-host" value="${res.host || ''}" placeholder="smtp.gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">SMTP Port</label>
+                            <input type="number" id="smtp-port" value="${res.port || 587}" placeholder="587">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Username</label>
+                            <input type="text" id="smtp-user" value="${res.username || ''}" placeholder="user@gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <input type="password" id="smtp-pass" value="${res.password || ''}" placeholder="App Password">
+                        </div>
+                         <div class="form-group">
+                            <label class="form-label">From Email</label>
+                            <input type="text" id="smtp-from" value="${res.fromEmail || ''}" placeholder="noreply@barron.dev">
+                        </div>
+                        <div class="toggle-row">
+                            <div>
+                                <div class="label">Enabled</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="smtp-enabled" ${res.isEnabled ? 'checked' : ''}>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <button onclick="saveSmtpSettings()">Save SMTP Settings</button>
+                    </div>
+                `;
+            }
+        }
+
+        async function saveSmtpSettings() {
+            await request('/admin/smtp-settings', 'POST', {
+                host: document.getElementById('smtp-host').value,
+                port: parseInt(document.getElementById('smtp-port').value) || 587,
+                username: document.getElementById('smtp-user').value,
+                password: document.getElementById('smtp-pass').value,
+                fromEmail: document.getElementById('smtp-from').value,
+                isEnabled: document.getElementById('smtp-enabled').checked
+            });
+            alert('SMTP Settings saved!');
+        }
+
+
+        // --- Modals ---
+        function openIpModal(id, ip1, ip2) {
+            document.getElementById('modal-lid').value = id;
+            document.getElementById('ip-1').value = ip1;
+            document.getElementById('ip-2').value = ip2;
+            document.getElementById('ip-modal').style.display = 'flex';
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        async function saveIps() {
+            const id = document.getElementById('modal-lid').value;
+            const ip1 = document.getElementById('ip-1').value;
+            const ip2 = document.getElementById('ip-2').value;
+
+            const res = await request('/user/licenses/ips', 'POST', {
+                licenseId: parseInt(id), ip1, ip2
+            });
+
+            if (res?.success) {
+                closeModal('ip-modal');
+                loadLicenses();
+            } else {
+                alert('Error saving IPs');
+            }
+        }
+
+        // --- Footer Links ---
+        let footerLinks = { discord: '', spigot: '', builtbybit: '' };
+
+        async function loadFooterLinks() {
+            const res = await request('/settings/footer-links');
+            if (res) {
+                footerLinks = res;
+                updateFooterDisplay();
+                // Update admin settings fields if they exist
+                const discordInput = document.getElementById('sys-link-discord');
+                const spigotInput = document.getElementById('sys-link-spigot');
+                const builtbybitInput = document.getElementById('sys-link-builtbybit');
+                if (discordInput) discordInput.value = res.discord || '';
+                if (spigotInput) spigotInput.value = res.spigot || '';
+                if (builtbybitInput) builtbybitInput.value = res.builtbybit || '';
+            }
+        }
+
+        function updateFooterDisplay() {
+            const updateLink = (id, url) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (url) {
+                    el.href = url;
+                    el.classList.remove('disabled');
+                } else {
+                    el.classList.add('disabled');
+                }
+            };
+
+            updateLink('footer-discord', footerLinks.discord);
+            updateLink('footer-spigot', footerLinks.spigot);
+            updateLink('footer-builtbybit', footerLinks.builtbybit);
+
+            updateLink('login-footer-discord', footerLinks.discord);
+            updateLink('login-footer-spigot', footerLinks.spigot);
+            updateLink('login-footer-builtbybit', footerLinks.builtbybit);
+
+            updateLink('content-footer-discord', footerLinks.discord);
+            updateLink('content-footer-spigot', footerLinks.spigot);
+            updateLink('content-footer-builtbybit', footerLinks.builtbybit);
+            // Main content footer removed in favor of sidebar footer
+        }
+
+        async function saveFooterLinks() {
+            const res = await request('/admin/footer-links', 'POST', {
+                discord: document.getElementById('sys-link-discord').value.trim(),
+                spigot: document.getElementById('sys-link-spigot').value.trim(),
+                builtbybit: document.getElementById('sys-link-builtbybit').value.trim()
+            });
+            if (res?.success) {
+                alert('Footer links saved!');
+                loadFooterLinks();
+            } else {
+                alert(res?.error || 'Error saving footer links');
+            }
+        }
+
+        // Start
+        // Always load footer links (public info)
+        loadFooterLinks();
+
+        const hash = window.location.hash;
+        console.log('Startup Hash:', hash);
+
+        if (hash && hash.indexOf('view-reset') !== -1) {
+            // Robust token extraction using regex
+            // Matches ?token=XYZ or &token=XYZ
+            const match = hash.match(/[?&]token=([^&]+)/);
+            if (match && match[1]) {
+                resetToken = match[1];
+                console.log('Reset Token Found:', resetToken);
+                showView('view-reset');
+            } else {
+                console.error('view-reset hash found but no token detected.');
+                // Optional: Show error to user?
+                showView('view-login');
+            }
+        } else if (localStorage.getItem('token')) {
+            initDashboard();
+        } else {
+            showView('view-login');
+        }
+    </script>
+</body>
+
+</html>

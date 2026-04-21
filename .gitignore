@@ -1,49 +1,110 @@
-# Barron License Manager
+# ============================================================
+# Barron Obfuscator - .gitignore
+# ============================================================
 
-# Build outputs
+# ==================== Build Outputs ====================
 build/
 out/
 target/
+bin/
 *.jar
 *.class
+*.war
+*.ear
 
-# IDE
+# ==================== IDE ====================
+# IntelliJ IDEA
 .idea/
 *.iml
+*.iws
+*.ipr
+
+# VS Code
 .vscode/
+
+# Eclipse
 .project
 .classpath
 .settings/
+.factorypath
 
-# Gradle
+# NetBeans
+nbproject/
+nbbuild/
+nbdist/
+nb-configuration.xml
+
+# ==================== Gradle ====================
 .gradle/
 gradle/wrapper/gradle-wrapper.jar
 
-# Sensitive data - NEVER COMMIT THESE
+# ==================== Sensitive / Runtime Data ====================
+# Database files
 *.db
 *.sqlite
+*.sqlite3
 licenses.db
+
+# Configuration (may contain DB credentials, API keys)
 config.json
 application.properties
+application.yml
+*.properties
+!gradle.properties
 
-# Generated files
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# SSL Certificates
+*.pem
+*.crt
+*.key
+*.p12
+*.jks
+*.keystore
+
+# ==================== Generated / User Data ====================
+# Obfuscated plugin output
 sifrelenmiş-pluginler/
 encrypted-plugins/
 
-# Logs
+# User upload directory
+uploads/
+
+# Grace period data (generated at runtime by protected plugins)
+data.bin
+
+# ==================== Logs ====================
 *.log
 logs/
+startup.log
+build_error.log
+build_log.txt
 
-# OS files
+# ==================== OS Files ====================
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
 Thumbs.db
 desktop.ini
+ehthumbs.db
 
-# Backup files
+# Linux
+*~
+.directory
+
+# ==================== Backup / Temp ====================
 *.bak
 *.backup
-*~
+*.tmp
+*.swp
+*.swo
 
-# User preferences
+# ==================== User Preferences ====================
 *.prefs
 user-preferences.json

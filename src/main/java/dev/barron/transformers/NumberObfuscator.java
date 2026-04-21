@@ -34,7 +34,11 @@ public class NumberObfuscator implements Transformer {
             if (method.instructions == null)
                 continue;
 
-            for (AbstractInsnNode insn : method.instructions.toArray()) {
+            AbstractInsnNode[] instructions = method.instructions.toArray();
+            for (AbstractInsnNode insn : instructions) {
+                if (insn == null)
+                    continue; // Safety check
+
                 InsnList replacement = null;
 
                 if (insn instanceof LdcInsnNode ldc) {

@@ -14,6 +14,7 @@ import java.util.*;
 public class IdentifierRenamer implements Transformer {
 
     private ObfuscationConfig config;
+    private boolean isBukkitPluginChecked = false;
 
     // Annotations that indicate method should keep its name
     private static final Set<String> KEEP_ANNOTATIONS = Set.of(
@@ -45,6 +46,12 @@ public class IdentifierRenamer implements Transformer {
     @Override
     public boolean transform(ClassNode classNode, TransformContext context) {
         boolean modified = false;
+
+        // Check once if this is a Bukkit plugin (only on first class)
+        if (!isBukkitPluginChecked) {
+            isBukkitPluginChecked = true;
+            checkIfBukkitPlugin(context);
+        }
 
         // First pass: collect all renameable identifiers
         // We need to process all classes first before renaming
@@ -151,20 +158,51 @@ public class IdentifierRenamer implements Transformer {
                 if (method.instructions != null) {
                     for (AbstractInsnNode insn : method.instructions) {
                         if (insn instanceof MethodInsnNode min) {
+                            // UPDATE NAME FIRST (using original descriptor)
+                            String newName = context.getNewMethodName(min.owner, min.name, min.desc);
+                            if (newName != null) {
+                                min.name = newName;
+                            }
+
                             min.owner = remapper.map(min.owner);
                             min.desc = remapper.mapMethodDesc(min.desc);
+                        } else if (insn instanceof InvokeDynamicInsnNode indy) {
+                            // HANDLE INVOKEDYNAMIC (Lambdas)
+                            // 1. Remap the name (though often arbitrary for lambdas)
+                            String newName = remapper.mapInvokeDynamicMethodName(indy.name, indy.desc);
+                            if (newName != null) {
+                                indy.name = newName;
+                            }
+
+                            // 2. Remap the descriptor
+                            indy.desc = remapper.mapMethodDesc(indy.desc);
+
+                            // 3. Remap the Bootstrap Method Handle (BSM)
+                            indy.bsm = (org.objectweb.asm.Handle) remapper.mapValue(indy.bsm);
+
+                            // 4. Remap BSM Arguments (This is critical for lambdas! contains ref to actual
+                            // method)
+                            for (int i = 0; i < indy.bsmArgs.length; i++) {
+                                indy.bsmArgs[i] = remapper.mapValue(indy.bsmArgs[i]);
+                            }
                         } else if (insn instanceof FieldInsnNode fin) {
+                            // UPDATE NAME FIRST
+                            String newName = context.getNewFieldName(fin.owner, fin.name);
+                            if (newName != null) {
+                                fin.name = newName;
+                            }
+
                             fin.owner = remapper.map(fin.owner);
                             fin.desc = remapper.mapDesc(fin.desc);
                         } else if (insn instanceof TypeInsnNode tin) {
                             tin.desc = remapper.map(tin.desc);
+                        } else if (insn instanceof MultiANewArrayInsnNode multi) {
+                            // Handle Multi-dimensional Arrays
+                            multi.desc = remapper.mapDesc(multi.desc);
                         } else if (insn instanceof LdcInsnNode ldc) {
-                            if (ldc.cst instanceof org.objectweb.asm.Type type) {
-                                if (type.getSort() == org.objectweb.asm.Type.OBJECT) {
-                                    String newName = remapper.map(type.getInternalName());
-                                    ldc.cst = org.objectweb.asm.Type.getObjectType(newName);
-                                }
-                            }
+                            // Use Remapper.mapValue() to handle Type (Object/Array), Handle, and
+                            // ConstantDynamic
+                            ldc.cst = remapper.mapValue(ldc.cst);
                         }
                     }
                 }
@@ -202,6 +240,8 @@ public class IdentifierRenamer implements Transformer {
         return packagePath + simpleName;
     }
 
+    private boolean isBukkitPlugin = false;
+
     private boolean isPluginMainClass(ClassNode classNode) {
         // Check if extends JavaPlugin or its variants
         if (classNode.superName != null) {
@@ -213,6 +253,18 @@ public class IdentifierRenamer implements Transformer {
     }
 
     private boolean shouldRenameClass(ClassNode classNode) {
+        // IMPORTANT: Don't rename ANY classes in Bukkit plugins
+        // Because main class is excluded from obfuscation and still uses original names
+        // If we rename other classes, main class can't find them ->
+        // ClassNotFoundException
+        // UPDATE: We now DO rename classes, because we don't exclude Main Class
+        // anymore.
+        /*
+         * if (isBukkitPlugin) {
+         * return false;
+         * }
+         */
+
         // Don't rename enums (can cause issues)
         if ((classNode.access & org.objectweb.asm.Opcodes.ACC_ENUM) != 0) {
             return false;
@@ -226,7 +278,28 @@ public class IdentifierRenamer implements Transformer {
         return true;
     }
 
+    /**
+     * Check if this is a Bukkit plugin (called from transform to set flag)
+     */
+    public void checkIfBukkitPlugin(TransformContext context) {
+        isBukkitPlugin = context.getResourceEntries().containsKey("plugin.yml");
+        if (isBukkitPlugin) {
+            context.log("[INFO] Bukkit plugin detected - identifier renaming ENABLED");
+            // context.log("[INFO] Bukkit plugin detected - identifier renaming DISABLED for
+            // compatibility");
+        }
+    }
+
     private boolean shouldRenameMethod(ClassNode owner, MethodNode method) {
+        // IMPORTANT: Don't rename methods in Bukkit plugins
+        // Main class is not obfuscated and still uses original method names
+        // UPDATE: We now allow renaming as long as it's not the Main Class
+        /*
+         * if (isBukkitPlugin) {
+         * return false;
+         * }
+         */
+
         // Never rename constructors or static initializers
         if (method.name.startsWith("<")) {
             return false;
@@ -265,6 +338,15 @@ public class IdentifierRenamer implements Transformer {
     }
 
     private boolean shouldRenameField(ClassNode owner, FieldNode field) {
+        // IMPORTANT: Don't rename fields in Bukkit plugins
+        // Main class is not obfuscated and still uses original field names
+        // UPDATE: We now allow renaming as long as it's not the Main Class
+        /*
+         * if (isBukkitPlugin) {
+         * return false;
+         * }
+         */
+
         // Don't rename serialVersionUID
         if (field.name.equals("serialVersionUID")) {
             return false;

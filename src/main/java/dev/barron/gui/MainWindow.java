@@ -16,6 +16,8 @@ import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.FileChooser;
@@ -27,21 +29,35 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.prefs.Preferences;
+import java.sql.SQLException;
 
 /**
  * Barron License Manager - 4 Page Application
  * 
- * Page 1: Plugin Encryption (Normal / Server-Side toggle)
  * Page 2: License Generation
  * Page 3: License Management
  * Page 4: Settings (Language, MySQL, Load Balancer)
  */
 public class MainWindow extends Application {
 
+    // Static instance for global logging
+    private static MainWindow instance;
+
     private Stage primaryStage;
     private ObfuscationConfig config;
     private DatabaseManager database;
     private Preferences prefs;
+
+    /**
+     * Global log method for external components to write to GUI log
+     */
+    public static void globalLog(String message) {
+        if (instance != null) {
+            instance.log(message);
+        } else {
+            System.out.println(message); // Fallback to console
+        }
+    }
 
     // Current state
     private File selectedJar;
@@ -59,6 +75,8 @@ public class MainWindow extends Application {
     private ToggleButton serverModeBtn;
     private CheckBox stringEncryptionCheck, identifierRenamingCheck, controlFlowCheck;
     private CheckBox deadCodeCheck, antiDebugCheck, metadataRemovalCheck;
+    private CheckBox classEncryptionCheck;
+    private TextField licenseKeyField, serverUrlField;
     private Button encryptButton;
 
     // Page 2 components
@@ -75,6 +93,7 @@ public class MainWindow extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        instance = this; // Set static instance for global logging
         this.primaryStage = primaryStage;
         this.config = new ObfuscationConfig();
         this.database = new DatabaseManager();
@@ -82,7 +101,7 @@ public class MainWindow extends Application {
 
         loadSettings();
 
-        primaryStage.setTitle(Barron.NAME + " v" + Barron.VERSION);
+        primaryStage.setTitle(Barron.NAME + "\\u2699" + Barron.VERSION);
         primaryStage.setMinWidth(900);
         primaryStage.setMinHeight(750);
 
@@ -114,6 +133,25 @@ public class MainWindow extends Application {
 
         log("Barron License Manager başlatıldı");
         connectDatabase();
+
+        // Start server with configured ports
+        int port = Integer.parseInt(prefs.get("server.port", "8000"));
+        int webPort = Integer.parseInt(prefs.get("server.web_port", "8080"));
+
+        config.setServerPort(port);
+        config.setWebPort(webPort);
+
+        // SSL Configuration
+        boolean sslEnabled = prefs.getBoolean("ssl.enabled", false);
+        String sslCertPath = prefs.get("ssl.cert_path", "");
+        String sslKeyPath = prefs.get("ssl.key_path", "");
+
+        // Server Domain
+        String serverDomain = prefs.get("license.domain", "");
+        dev.barron.server.LicenseServer.setServerDomain(serverDomain);
+
+        dev.barron.server.LicenseServer.start(database, port, webPort, sslEnabled, sslCertPath, sslKeyPath);
+        log("Servisler Başlatıldı - API: " + port + ", Web: " + webPort + (sslEnabled ? " (HTTPS)" : " (HTTP)"));
     }
 
     private HBox createHeader() {
@@ -184,7 +222,12 @@ public class MainWindow extends Application {
         buttonBox.setAlignment(Pos.CENTER);
 
         content.getChildren().addAll(modeSection, dropZone, settingsSection, buttonBox);
-        tab.setContent(content);
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+
+        tab.setContent(scrollPane);
         return tab;
     }
 
@@ -242,7 +285,7 @@ public class MainWindow extends Application {
 
     private void selectFile(File file) {
         this.selectedJar = file;
-        dropLabel.setText("✅ " + file.getName());
+        dropLabel.setText(file.getName());
         dropLabel.setTextFill(Color.web("#00ff88"));
         encryptButton.setDisable(false);
         log("Dosya seçildi: " + file.getName());
@@ -259,6 +302,7 @@ public class MainWindow extends Application {
         deadCodeCheck = createCheckBox(I18n.get("encrypt.deadcode"), true);
         antiDebugCheck = createCheckBox(I18n.get("encrypt.antidebug"), true);
         metadataRemovalCheck = createCheckBox("Metadata Temizleme", true);
+        classEncryptionCheck = createCheckBox("Class Encryption (Custom Loader)", true);
 
         GridPane grid = new GridPane();
         grid.setHgap(30);
@@ -269,6 +313,7 @@ public class MainWindow extends Application {
         grid.add(deadCodeCheck, 1, 1);
         grid.add(antiDebugCheck, 0, 2);
         grid.add(metadataRemovalCheck, 1, 2);
+        grid.add(classEncryptionCheck, 0, 3);
 
         VBox section = new VBox(10, title, grid);
         section.setPadding(new Insets(10));
@@ -310,6 +355,48 @@ public class MainWindow extends Application {
                 config.setDeadCodeInjection(deadCodeCheck.isSelected());
                 config.setAntiDebug(antiDebugCheck.isSelected());
                 config.setMetadataRemoval(metadataRemovalCheck.isSelected());
+                config.setClassEncryption(classEncryptionCheck.isSelected());
+
+                // License verification only in SERVER mode
+                config.setLicenseVerification(serverModeEnabled);
+
+                // Set license server domain (for Cloudflare protection)
+                String domain = "localhost";
+                if (licenseDomainField != null && !licenseDomainField.getText().trim().isEmpty()) {
+                    domain = licenseDomainField.getText().trim()
+                            .replace("http://", "")
+                            .replace("https://", "")
+                            .replaceAll(":\\d+$", ""); // Portu temizle (örn: :8443) çünkü aşağıda port ayrıca ekleniyor
+                    config.setLicenseServerDomain(domain);
+                }
+
+                // Construct and set the full License Server URL automatically
+                // Format: protocol://domain:port/api/verify
+                String protocol = (sslEnabledCheck != null && sslEnabledCheck.isSelected()) ? "https" : "http";
+                String port = (serverPortField != null && !serverPortField.getText().isEmpty())
+                        ? serverPortField.getText().trim()
+                        : "8000";
+
+                String fullUrl = String.format("%s://%s:%s/api/verify", protocol, domain, port);
+                config.setLicenseServerUrl(fullUrl);
+
+                // Log the generated URL for debugging
+                Platform.runLater(() -> log("Lisans URL ayarlandı: " + fullUrl));
+
+                // Load Balancer Config
+                if (loadBalancerEnabledCheck.isSelected() && !backupHostField.getText().isEmpty()) {
+                    config.setBackupServerUrl(backupHostField.getText().trim());
+                } else {
+                    config.setBackupServerUrl(""); // Only meaningful if LB enabled
+                }
+
+                // Security (Dynamic Secret)
+                if (secretKeyField != null) {
+                    config.setTokenSecret(secretKeyField.getText());
+                } else {
+                    // Fallback to prefs if field is somehow null (e.g. tab not created yet)
+                    config.setTokenSecret(prefs.get("security.token_secret", "BARRON-SECURE-2024-V1"));
+                }
 
                 // Obfuscate
                 ObfuscationEngine engine = new ObfuscationEngine(config);
@@ -334,7 +421,7 @@ public class MainWindow extends Application {
             protected void succeeded() {
                 Platform.runLater(() -> {
                     encryptButton.setDisable(false);
-                    log("✅ Şifreleme tamamlandı!");
+                    log("\\u2705 Şifreleme tamamlandı!");
                     refreshPluginList();
 
                     Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -349,7 +436,7 @@ public class MainWindow extends Application {
             protected void failed() {
                 Platform.runLater(() -> {
                     encryptButton.setDisable(false);
-                    log("❌ HATA: " + getException().getMessage());
+                    log("\\u274C HATA: " + getException().getMessage());
                 });
             }
         };
@@ -384,17 +471,30 @@ public class MainWindow extends Application {
 
         pluginList = new ListView<>();
         pluginList.setPrefHeight(200);
-        pluginList.setStyle("-fx-background-color: #0a1628;");
+        pluginList.setStyle("-fx-background-color: #000000; -fx-control-inner-background: #000000;");
         pluginList.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(DatabaseManager.PluginInfo item, boolean empty) {
                 super.updateItem(item, empty);
+
+                // Style based on selection state
+                if (isSelected() && item != null) {
+                    // Selected: green border with dark green background
+                    setStyle(
+                            "-fx-background-color: #003322; -fx-border-color: #00ff88; -fx-border-width: 2; -fx-border-radius: 3;");
+                    setTextFill(Color.web("#00ff88"));
+                } else {
+                    // Not selected: plain black background
+                    setStyle("-fx-background-color: #000000;");
+                    setTextFill(Color.web("#00ff88"));
+                }
+
                 if (empty || item == null) {
                     setText(null);
+                    setStyle("-fx-background-color: #000000;");
                 } else {
                     setText(String.format("%s [%d lisans]", item.filename(), item.licenseCount()));
                 }
-                setTextFill(Color.web("#00ff88"));
             }
         });
 
@@ -404,8 +504,20 @@ public class MainWindow extends Application {
             }
         });
 
+        // Plugin action buttons
+        Button deletePluginBtn = new Button("🗑️ Plugin Sil");
+        deletePluginBtn.setStyle("-fx-background-color: #dd3333; -fx-text-fill: white;");
+        deletePluginBtn.setOnAction(e -> deleteSelectedPlugin());
+
+        Button refreshPluginsBtn = new Button("🔄 Yenile");
+        refreshPluginsBtn.setStyle("-fx-background-color: #1f4068; -fx-text-fill: #8892b0;");
+        refreshPluginsBtn.setOnAction(e -> refreshPluginList());
+
         Label hint = new Label("💡 " + I18n.get("license.doubleclick"));
         hint.setTextFill(Color.web("#666666"));
+
+        HBox pluginButtons = new HBox(10, deletePluginBtn, refreshPluginsBtn, hint);
+        pluginButtons.setAlignment(Pos.CENTER_LEFT);
 
         // Duration settings
         Label durationTitle = new Label("⏱️ " + I18n.get("license.duration"));
@@ -444,8 +556,13 @@ public class MainWindow extends Application {
         HBox lastBox = new HBox(15, lastLicenseLabel, copyBtn);
         lastBox.setAlignment(Pos.CENTER_LEFT);
 
-        content.getChildren().addAll(listTitle, pluginList, hint, durationTitle, durationBox, lastBox);
-        tab.setContent(content);
+        content.getChildren().addAll(listTitle, pluginList, pluginButtons, durationTitle, durationBox, lastBox);
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+
+        tab.setContent(scrollPane);
         return tab;
     }
 
@@ -459,11 +576,11 @@ public class MainWindow extends Application {
             String licenseKey = database.createLicense(selected.id(), days);
 
             lastLicenseLabel.setText(licenseKey);
-            log("✅ Lisans oluşturuldu: " + licenseKey);
+            log("\\u2705 Lisans oluşturuldu: " + licenseKey);
 
             refreshPluginList();
         } catch (Exception e) {
-            log("❌ Lisans oluşturma hatası: " + e.getMessage());
+            log("\\u274C Lisans oluşturma hatası: " + e.getMessage());
         }
     }
 
@@ -474,6 +591,32 @@ public class MainWindow extends Application {
         } catch (Exception e) {
             log("Plugin listesi yüklenemedi: " + e.getMessage());
         }
+    }
+
+    private void deleteSelectedPlugin() {
+        DatabaseManager.PluginInfo selected = pluginList.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            log("⚠️ Lütfen silmek için bir plugin seçin");
+            return;
+        }
+
+        // Confirmation dialog
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Plugin Sil");
+        confirm.setHeaderText("Plugin silinecek: " + selected.filename());
+        confirm.setContentText("Bu plugin ve tüm lisansları silinecek. Emin misiniz?");
+
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                try {
+                    database.deletePlugin(selected.id());
+                    log("\\u2705 Plugin silindi: " + selected.filename());
+                    refreshPluginList();
+                } catch (Exception e) {
+                    log("\\u274C Plugin silinemedi: " + e.getMessage());
+                }
+            }
+        });
     }
 
     // ==================== PAGE 3: MANAGEMENT ====================
@@ -516,7 +659,7 @@ public class MainWindow extends Application {
             if (exp == null)
                 return new javafx.beans.property.SimpleStringProperty("∞");
             long days = (exp.getTime() - System.currentTimeMillis()) / (24 * 60 * 60 * 1000);
-            return new javafx.beans.property.SimpleStringProperty(days + " " + I18n.get("license.days"));
+            return new javafx.beans.property.SimpleStringProperty(days + "\\uD83C\\uDF10" + I18n.get("license.days"));
         });
         expiresCol.setPrefWidth(80);
 
@@ -537,10 +680,20 @@ public class MainWindow extends Application {
         deleteBtn.setOnAction(e -> deleteSelectedLicense());
 
         HBox buttonBox = new HBox(15, refreshBtn, deleteBtn);
+        buttonBox.setPadding(new Insets(10, 0, 0, 0));
 
-        content.getChildren().addAll(searchField, licenseTable, buttonBox);
-        VBox.setVgrow(licenseTable, Priority.ALWAYS);
-        tab.setContent(content);
+        BorderPane layout = new BorderPane();
+        layout.setPadding(new Insets(20));
+        layout.setStyle("-fx-background-color: #16213e;");
+
+        VBox topBox = new VBox(10, searchField);
+        topBox.setPadding(new Insets(0, 0, 10, 0));
+
+        layout.setTop(topBox);
+        layout.setCenter(licenseTable);
+        layout.setBottom(buttonBox);
+
+        tab.setContent(layout);
         return tab;
     }
 
@@ -550,7 +703,7 @@ public class MainWindow extends Application {
             licenseTable.getItems().addAll(database.getAllLicenses());
             log("Lisans listesi yenilendi");
         } catch (Exception e) {
-            log("❌ " + e.getMessage());
+            log("\\u274C " + e.getMessage());
         }
     }
 
@@ -562,7 +715,7 @@ public class MainWindow extends Application {
                 refreshLicenseTable();
                 log("Lisans silindi: " + selected.licenseKey());
             } catch (Exception e) {
-                log("❌ " + e.getMessage());
+                log("\\u274C " + e.getMessage());
             }
         }
     }
@@ -580,11 +733,27 @@ public class MainWindow extends Application {
         // Language
         VBox langSection = createLanguageSection();
 
+        // Network
+        VBox networkSection = createNetworkSection();
+
+        // Security (Secret Key)
+        VBox securitySection = createSecuritySection();
+
         // MySQL
         VBox mysqlSection = createMySQLSection();
 
         // Load Balancer
+        // Load Balancer (License Server)
         VBox lbSection = createLoadBalancerSection();
+
+        // Database Failover (MySQL)
+        VBox dbFailoverSection = createDatabaseFailoverSection();
+
+        // SMTP
+        VBox smtpSection = createSmtpSection();
+
+        // Payment
+        VBox paymentSection = createPaymentSection();
 
         // Save button
         Button saveBtn = new Button("💾 " + I18n.get("settings.save"));
@@ -595,9 +764,169 @@ public class MainWindow extends Application {
         HBox saveBox = new HBox(saveBtn);
         saveBox.setAlignment(Pos.CENTER);
 
-        content.getChildren().addAll(langSection, mysqlSection, lbSection, saveBox);
-        tab.setContent(content);
+        content.getChildren().addAll(langSection, networkSection, securitySection, mysqlSection, lbSection,
+                dbFailoverSection, smtpSection,
+                paymentSection,
+                saveBox);
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+
+        tab.setContent(scrollPane);
         return tab;
+    }
+
+    private TextField backupHostField;
+    private CheckBox loadBalancerEnabledCheck;
+
+    private VBox createLoadBalancerSection() {
+        Label title = new Label("⚖️ " + "LOAD BALANCER & FAILOVER");
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        title.setTextFill(Color.web("#e94560"));
+
+        loadBalancerEnabledCheck = new CheckBox("Load Balancer Aktif");
+        loadBalancerEnabledCheck.setSelected(prefs.getBoolean("lb.enabled", false));
+        loadBalancerEnabledCheck.setTextFill(Color.WHITE);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(15);
+        grid.setVgap(10);
+
+        backupHostField = new TextField(prefs.get("lb.backup_ip", ""));
+        backupHostField.setPromptText("backup.example.com veya IP");
+        styleTextField(backupHostField);
+
+        grid.addRow(0, createLabel("Yedek Sunucu IP/Domain:"), backupHostField);
+
+        Label infoLabel = new Label(
+                "Ana sunucu çökmesi durumunda lisans kontrolü otomatik olarak\nbu adrese yönlendirilir.");
+        infoLabel.setTextFill(Color.web("#888888"));
+        infoLabel.setFont(Font.font("Segoe UI", 10));
+
+        Label warningLabel = new Label("DİKKAT: Bu özellik şifreleme işleminden ÖNCE aktif edilmelidir!");
+        warningLabel.setTextFill(Color.web("#e94560")); // Red color
+        warningLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10));
+
+        VBox section = new VBox(15, title, loadBalancerEnabledCheck, grid, infoLabel, warningLabel);
+        section.setPadding(new Insets(10));
+        section.setStyle("-fx-background-color: #0a1628; -fx-background-radius: 10;");
+        return section;
+    }
+
+    private TextField serverPortField;
+    private Hyperlink serverLink;
+    private TextField webPortField;
+    private Hyperlink webLink;
+    private TextField licenseDomainField;
+    private CheckBox sslEnabledCheck;
+    private TextField sslCertField;
+    private TextField sslKeyField;
+
+    private VBox createNetworkSection() {
+        Label title = new Label("🌐 " + "NETWORK & SERVER");
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        title.setTextFill(Color.web("#e94560"));
+
+        GridPane grid = new GridPane();
+        grid.setHgap(15);
+        grid.setVgap(10);
+
+        // API Port
+        String currentPort = prefs.get("server.port", "8000");
+        serverPortField = new TextField(currentPort);
+        styleTextField(serverPortField);
+
+        serverLink = new Hyperlink("(http://localhost:" + currentPort + ")");
+        serverLink.setTextFill(Color.web("#00aa55"));
+        serverLink.setOnAction(e -> getHostServices().showDocument("http://localhost:" + currentPort + "/api/verify"));
+
+        grid.addRow(0, createLabel("API Server Port:"), serverPortField, serverLink);
+
+        // Web Panel Port
+        String currentWebPort = prefs.get("server.web_port", "8080");
+        webPortField = new TextField(currentWebPort);
+        styleTextField(webPortField);
+
+        webLink = new Hyperlink("(http://localhost:" + currentWebPort + ")");
+        webLink.setTextFill(Color.web("#00aa55"));
+        webLink.setOnAction(e -> getHostServices().showDocument("http://localhost:" + currentWebPort));
+
+        grid.addRow(1, createLabel("Web Panel Port:"), webPortField, webLink);
+
+        // License Server Domain (for Cloudflare)
+        String currentDomain = prefs.get("license.domain", "");
+        licenseDomainField = new TextField(currentDomain);
+        licenseDomainField.setPromptText("api.example.com (http/s yazmayın)");
+        styleTextField(licenseDomainField);
+
+        Label domainInfo = new Label("Sadece Domain veya IP (Örn: 192.168.1.1). Protokol (http/s) otomatik eklenir.");
+        domainInfo.setTextFill(Color.web("#888888"));
+        domainInfo.setFont(Font.font("Segoe UI", 10));
+
+        grid.addRow(2, createLabel("License Domain:"), licenseDomainField, domainInfo);
+
+        Label infoLabel = new Label("Varsayılan: API 8000, Web 8080. Portları firewall'dan açmayı unutmayın.");
+        infoLabel.setTextFill(Color.web("#666666"));
+
+        // SSL Settings Section
+        Label sslTitle = new Label("🔒 SSL / HTTPS");
+        sslTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+        sslTitle.setTextFill(Color.web("#00aa55"));
+        sslTitle.setPadding(new Insets(10, 0, 0, 0));
+
+        sslEnabledCheck = new CheckBox("SSL Aktif (HTTPS)");
+        sslEnabledCheck.setTextFill(Color.WHITE);
+        sslEnabledCheck.setSelected(prefs.getBoolean("ssl.enabled", false));
+
+        // Certificate Path
+        Label certLabel = createLabel("Origin Certificate:");
+        sslCertField = new TextField(prefs.get("ssl.cert_path", ""));
+        sslCertField.setPromptText("cert.pem dosya yolu");
+        styleTextField(sslCertField);
+        sslCertField.setPrefWidth(250);
+        Button certBrowseBtn = new Button("...");
+        certBrowseBtn.setOnAction(e -> {
+            javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
+            fc.setTitle("Sertifika Dosyası Seç (.pem)");
+            fc.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("PEM Files", "*.pem", "*.crt"));
+            java.io.File f = fc.showOpenDialog(null);
+            if (f != null)
+                sslCertField.setText(f.getAbsolutePath());
+        });
+        HBox certBox = new HBox(5, sslCertField, certBrowseBtn);
+
+        // Key Path
+        Label keyLabel = createLabel("Private Key:");
+        sslKeyField = new TextField(prefs.get("ssl.key_path", ""));
+        sslKeyField.setPromptText("key.pem dosya yolu");
+        styleTextField(sslKeyField);
+        sslKeyField.setPrefWidth(250);
+        Button keyBrowseBtn = new Button("...");
+        keyBrowseBtn.setOnAction(e -> {
+            javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
+            fc.setTitle("Private Key Dosyası Seç (.pem)");
+            fc.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("PEM Files", "*.pem", "*.key"));
+            java.io.File f = fc.showOpenDialog(null);
+            if (f != null)
+                sslKeyField.setText(f.getAbsolutePath());
+        });
+        HBox keyBox = new HBox(5, sslKeyField, keyBrowseBtn);
+
+        GridPane sslGrid = new GridPane();
+        sslGrid.setHgap(10);
+        sslGrid.setVgap(5);
+        sslGrid.addRow(0, certLabel, certBox);
+        sslGrid.addRow(1, keyLabel, keyBox);
+
+        Label sslInfoLabel = new Label("Cloudflare Origin Certificate kullanarak HTTPS aktif edin.");
+        sslInfoLabel.setTextFill(Color.web("#888888"));
+        sslInfoLabel.setFont(Font.font("Segoe UI", 10));
+
+        VBox section = new VBox(10, title, grid, infoLabel, sslTitle, sslEnabledCheck, sslGrid, sslInfoLabel);
+        section.setPadding(new Insets(10));
+        section.setStyle("-fx-background-color: #0a1628; -fx-background-radius: 10;");
+        return section;
     }
 
     private VBox createLanguageSection() {
@@ -661,29 +990,64 @@ public class MainWindow extends Application {
         return section;
     }
 
-    private VBox createLoadBalancerSection() {
-        Label title = new Label("⚖️ " + I18n.get("settings.loadbalancer"));
+    private TextField failoverHost, failoverPort, failoverUser, failoverPass;
+    private CheckBox failoverEnabledCheck;
+
+    private VBox createDatabaseFailoverSection() {
+        Label title = new Label("🔄 " + "FAILOVER / REMOTE BACKUP");
         title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
         title.setTextFill(Color.web("#e94560"));
 
-        loadBalancerCheck = new CheckBox("Aktif");
-        loadBalancerCheck.setTextFill(Color.web("#8892b0"));
+        failoverEnabledCheck = new CheckBox("Failover / Otomatik Yedekleme Aktif");
+        failoverEnabledCheck.setTextFill(Color.web("#8892b0"));
+        failoverEnabledCheck.setSelected(prefs.getBoolean("failover.enabled", false));
 
-        backupHost = new TextField();
-        backupHost.setPromptText(I18n.get("settings.backup.host"));
-        styleTextField(backupHost);
-        backupHost.setDisable(true);
+        GridPane grid = new GridPane();
+        grid.setHgap(15);
+        grid.setVgap(10);
 
-        loadBalancerCheck.setOnAction(e -> backupHost.setDisable(!loadBalancerCheck.isSelected()));
+        // Host
+        failoverHost = new TextField(prefs.get("failover.host", ""));
+        failoverHost.setPromptText("Yedek Sunucu IP");
+        styleTextField(failoverHost);
+        grid.addRow(0, createLabel("Host:"), failoverHost);
 
-        Button copyBtn = new Button("📥 " + I18n.get("settings.backup.copy"));
-        copyBtn.setStyle("-fx-background-color: #1f4068; -fx-text-fill: #8892b0;");
-        copyBtn.setOnAction(e -> copyToBackup());
+        // Port
+        failoverPort = new TextField(prefs.get("failover.port", "3306"));
+        styleTextField(failoverPort);
+        failoverPort.setPrefWidth(80);
+        grid.addRow(1, createLabel("Port:"), failoverPort);
 
-        VBox section = new VBox(10, title, loadBalancerCheck, backupHost, copyBtn);
+        // User
+        failoverUser = new TextField(prefs.get("failover.user", "root"));
+        styleTextField(failoverUser);
+        grid.addRow(2, createLabel("User:"), failoverUser);
+
+        // Pass
+        failoverPass = new PasswordField();
+        failoverPass.setText(prefs.get("failover.pass", ""));
+        styleTextField(failoverPass);
+        grid.addRow(3, createLabel("Pass:"), failoverPass);
+
+        // Enable/Disable fields
+        toggleFailoverFields(failoverEnabledCheck.isSelected());
+        failoverEnabledCheck.setOnAction(e -> toggleFailoverFields(failoverEnabledCheck.isSelected()));
+
+        Button saveBtn = new Button("💾 " + I18n.get("settings.save"));
+        saveBtn.setStyle("-fx-background-color: #00aa55; -fx-text-fill: white; -fx-font-weight: bold;");
+        saveBtn.setOnAction(e -> saveSettings());
+
+        VBox section = new VBox(15, title, failoverEnabledCheck, grid);
         section.setPadding(new Insets(10));
         section.setStyle("-fx-background-color: #0a1628; -fx-background-radius: 10;");
         return section;
+    }
+
+    private void toggleFailoverFields(boolean enabled) {
+        failoverHost.setDisable(!enabled);
+        failoverPort.setDisable(!enabled);
+        failoverUser.setDisable(!enabled);
+        failoverPass.setDisable(!enabled);
     }
 
     private void styleTextField(TextField tf) {
@@ -693,6 +1057,7 @@ public class MainWindow extends Application {
     private Label createLabel(String text) {
         Label label = new Label(text);
         label.setTextFill(Color.web("#8892b0"));
+        label.setMinWidth(60);
         return label;
     }
 
@@ -705,44 +1070,626 @@ public class MainWindow extends Application {
                 mysqlPassword.getText());
 
         if (database.testConnection()) {
-            log("✅ MySQL bağlantısı başarılı!");
+            log("\\u2705 MySQL bağlantısı başarılı!");
             showInfo("MySQL bağlantısı başarılı!");
         } else {
-            log("❌ MySQL bağlantısı başarısız!");
+            log("\\u274C MySQL bağlantısı başarısız!");
             showError("MySQL bağlantısı başarısız!");
         }
     }
 
+    // Deprecated direct copy, now handled by failover replication
     private void copyToBackup() {
-        if (backupHost.getText().isEmpty()) {
-            showError("Yedek sunucu IP'si girin!");
-            return;
-        }
-
-        try {
-            database.replicateToBackup(
-                    backupHost.getText(),
-                    Integer.parseInt(mysqlPort.getText()),
-                    mysqlUser.getText(),
-                    mysqlPassword.getText());
-            log("✅ Veriler yedek sunucuya kopyalandı!");
-            showInfo("Veriler başarıyla kopyalandı!");
-        } catch (Exception e) {
-            log("❌ Kopyalama hatası: " + e.getMessage());
-            showError("Kopyalama hatası: " + e.getMessage());
-        }
+        // Implementation replaced by real-time failover
+        showInfo("Otomatik yedekleme aktifse veriler anlık işlenir.");
     }
 
     private void saveSettings() {
+        // Main DB
         prefs.put("mysql.host", mysqlHost.getText());
         prefs.put("mysql.port", mysqlPort.getText());
         prefs.put("mysql.user", mysqlUser.getText());
         prefs.put("mysql.database", mysqlDatabase.getText());
+
+        // Language
         prefs.put("language", languageCombo.getValue().getCode());
 
+        // Server
+        prefs.put("server.port", serverPortField.getText());
+        prefs.put("server.web_port", webPortField.getText());
+        prefs.put("server.web_port", webPortField.getText());
+        prefs.put("license.domain", licenseDomainField.getText());
+
+        // Security
+        prefs.put("security.token_secret", secretKeyField.getText());
+
+        // SSL
+        prefs.putBoolean("ssl.enabled", sslEnabledCheck.isSelected());
+        prefs.put("ssl.cert_path", sslCertField.getText());
+        prefs.put("ssl.key_path", sslKeyField.getText());
+
+        // Failover
+        prefs.putBoolean("failover.enabled", failoverEnabledCheck.isSelected());
+        prefs.put("failover.host", failoverHost.getText());
+        prefs.put("failover.port", failoverPort.getText());
+        prefs.put("failover.user", failoverUser.getText());
+        prefs.put("failover.pass", failoverPass.getText());
+
+        // SMTP
+        prefs.put("smtp.host", smtpHost.getText());
+        prefs.put("smtp.port", smtpPort.getText());
+        prefs.put("smtp.security", smtpSecurityType.getValue());
+        prefs.put("smtp.user", smtpUser.getText());
+        prefs.put("smtp.pass", smtpPass.getText());
+        prefs.put("smtp.from", smtpFrom.getText());
+        prefs.putBoolean("smtp.enabled", smtpEnabledCheck.isSelected());
+
+        // Payment
+        prefs.put("payment.provider", paymentProvider.getValue());
+        prefs.put("payment.apiKey", paymentApiKey.getText());
+        prefs.put("payment.apiSecret", paymentApiSecret.getText());
+        prefs.put("payment.webhook", paymentWebhookSecret.getText());
+        prefs.put("payment.merchant", paymentMerchantId.getText());
+        prefs.putBoolean("payment.enabled", paymentEnabledSwitch.isSelected());
+        prefs.putBoolean("payment.test", !paymentLiveModeSwitch.isSelected()); // Live = not test
+
+        try {
+            int port = Integer.parseInt(serverPortField.getText());
+            int webPort = Integer.parseInt(webPortField.getText());
+
+            config.setServerPort(port);
+            config.setWebPort(webPort);
+            config.setTokenSecret(secretKeyField.getText());
+
+            // SSL
+            boolean sslEnabled = sslEnabledCheck.isSelected();
+            String sslCertPath = sslCertField.getText();
+            String sslKeyPath = sslKeyField.getText();
+
+            // Failover Config
+            if (failoverEnabledCheck.isSelected()) {
+                database.configureSecondary(
+                        failoverHost.getText(),
+                        Integer.parseInt(failoverPort.getText()),
+                        failoverUser.getText(),
+                        failoverPass.getText());
+            } else {
+                database.setFailoverEnabled(false);
+            }
+
+            // Sync Settings to DB (SMTP & Payment)
+            if (database.isConnected()) {
+                database.saveSmtpSettings(
+                        smtpHost.getText(),
+                        Integer.parseInt(smtpPort.getText()),
+                        smtpSecurityType.getValue(),
+                        smtpUser.getText(),
+                        smtpPass.getText(),
+                        smtpFrom.getText(),
+                        smtpEnabledCheck.isSelected());
+                database.savePaymentSettings(
+                        paymentProvider.getValue(),
+                        paymentApiKey.getText(),
+                        paymentApiSecret.getText(),
+                        paymentWebhookSecret.getText(),
+                        paymentMerchantId.getText(),
+                        paymentEnabledSwitch.isSelected(),
+                        !paymentLiveModeSwitch.isSelected()); // test mode = NOT live mode
+            }
+
+            // Restart Server
+            String rawDomain = licenseDomainField.getText().trim();
+            String cleanDomain = rawDomain
+                    .replace("http://", "")
+                    .replace("https://", "")
+                    .replaceAll(":\\d+$", "");
+
+            // Save clean domain to prefs to avoid future issues
+            prefs.put("license.domain", cleanDomain);
+
+            dev.barron.server.LicenseServer.setServerDomain(cleanDomain);
+            dev.barron.server.LicenseServer.start(database, port, webPort, sslEnabled, sslCertPath, sslKeyPath);
+
+            // Update UI Links
+            String protocol = sslEnabled ? "https" : "http";
+            serverLink.setText("(" + protocol + "://localhost:" + port + ")");
+            serverLink.setOnAction(
+                    ev -> getHostServices().showDocument(protocol + "://localhost:" + port + "/api/verify"));
+
+            webLink.setText("(" + protocol + "://localhost:" + webPort + ")");
+            webLink.setOnAction(ev -> getHostServices().showDocument(protocol + "://localhost:" + webPort));
+
+            log("Ayarlar kaydedildi ve sunucu yeniden başlatıldı.");
+            showInfo("Ayarlar başarıyla kaydedildi!");
+
+        } catch (NumberFormatException | SQLException e) {
+            log("\\u274C Hata: " + e.getMessage());
+            showError("Kaydetme hatası: " + e.getMessage());
+        }
+
         I18n.setLanguage(languageCombo.getValue());
-        log("Ayarlar kaydedildi");
-        showInfo("Ayarlar kaydedildi. Dil değişikliği için uygulamayı yeniden başlatın.");
+    }
+
+    // ==================== NEW SECTIONS ====================
+
+    private PasswordField secretKeyField;
+    private TextField secretKeyVisibleField;
+    private Button toggleSecretBtn;
+    private boolean isSecretVisible = false;
+
+    private VBox createSecuritySection() {
+        Label title = new Label("🔒 " + "SECURITY & ENCRYPTION");
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        title.setTextFill(Color.web("#e94560"));
+
+        GridPane grid = new GridPane();
+        grid.setHgap(15);
+        grid.setVgap(10);
+
+        // Secret Key Field
+        String currentSecret = prefs.get("security.token_secret", "BARRON-SECURE-2024-V1");
+
+        secretKeyField = new PasswordField();
+        secretKeyField.setText(currentSecret);
+        styleTextField(secretKeyField);
+        secretKeyField.setPrefWidth(250);
+
+        secretKeyVisibleField = new TextField();
+        secretKeyVisibleField.setText(currentSecret);
+        styleTextField(secretKeyVisibleField);
+        secretKeyVisibleField.setPrefWidth(250);
+        secretKeyVisibleField.setVisible(false);
+        secretKeyVisibleField.setManaged(false);
+
+        // Sync fields
+        secretKeyField.textProperty().bindBidirectional(secretKeyVisibleField.textProperty());
+
+        toggleSecretBtn = new Button("Göster");
+        toggleSecretBtn.setStyle("-fx-background-color: #1f4068; -fx-text-fill: white; -fx-font-size: 10px;");
+        toggleSecretBtn.setOnAction(e -> {
+            isSecretVisible = !isSecretVisible;
+            if (isSecretVisible) {
+                toggleSecretBtn.setText("Gizle");
+                secretKeyVisibleField.setVisible(true);
+                secretKeyVisibleField.setManaged(true);
+                secretKeyField.setVisible(false);
+                secretKeyField.setManaged(false);
+            } else {
+                toggleSecretBtn.setText("Göster");
+                secretKeyVisibleField.setVisible(false);
+                secretKeyVisibleField.setManaged(false);
+                secretKeyField.setVisible(true);
+                secretKeyField.setManaged(true);
+            }
+        });
+
+        HBox secretBox = new HBox(5, secretKeyField, secretKeyVisibleField, toggleSecretBtn);
+        secretBox.setAlignment(Pos.CENTER_LEFT);
+
+        grid.addRow(0, createLabel("License Secret Master Key:"), secretBox);
+
+        // Restore Button
+        Button restoreBtn = new Button("Son Kayıtlıyı Geri Yükle");
+        restoreBtn.setStyle("-fx-background-color: #2c3e50; -fx-text-fill: #ecf0f1; -fx-font-size: 11px;");
+        restoreBtn.setOnAction(e -> {
+            String saved = prefs.get("security.token_secret", "BARRON-SECURE-2024-V1");
+            secretKeyField.setText(saved);
+            showInfo("Son kaydedilen şifre geri yüklendi.");
+        });
+
+        grid.add(restoreBtn, 1, 1);
+
+        // Red Warning
+        Label warningLabel = new Label(
+                "DİKKAT: Bu anahtarı değiştirmek, daha önce oluşturulmuş\ntüm lisansların geçersiz olmasına neden olur!");
+        warningLabel.setTextFill(Color.RED);
+        warningLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+        warningLabel.setStyle("-fx-border-color: red; -fx-border-width: 1; -fx-padding: 5;");
+
+        VBox section = new VBox(15, title, grid, warningLabel);
+        section.setPadding(new Insets(10));
+        section.setStyle(
+                "-fx-background-color: #0a1628; -fx-background-radius: 10; border-color: #e94560; border-width: 1;");
+        return section;
+    }
+
+    private TextField smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom;
+    private CheckBox smtpEnabledCheck;
+    private ComboBox<String> smtpSecurityType;
+
+    private VBox createSmtpSection() {
+        Label title = new Label("📧 SMTP / EMAIL");
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        title.setTextFill(Color.web("#e94560"));
+
+        smtpEnabledCheck = new CheckBox("Email Servisi Aktif");
+        smtpEnabledCheck.setTextFill(Color.web("#8892b0"));
+        smtpEnabledCheck.setSelected(prefs.getBoolean("smtp.enabled", false));
+
+        GridPane grid = new GridPane();
+        grid.setHgap(15);
+        grid.setVgap(10);
+
+        // SMTP Sunucusu (Host)
+        smtpHost = new TextField(prefs.get("smtp.host", ""));
+        smtpHost.setPromptText("smtp.example.com");
+        styleTextField(smtpHost);
+        grid.addRow(0, createLabel("SMTP Sunucusu:"), smtpHost);
+
+        // SMTP Portu
+        smtpPort = new TextField(prefs.get("smtp.port", ""));
+        smtpPort.setPromptText("465 veya 587");
+        styleTextField(smtpPort);
+        grid.addRow(1, createLabel("SMTP Portu:"), smtpPort);
+
+        // SMTP Güvenliği (Security Type)
+        smtpSecurityType = new ComboBox<>();
+        smtpSecurityType.getItems().addAll("SSL", "TLS", "STARTTLS", "Yok");
+        smtpSecurityType.setValue(prefs.get("smtp.security", "SSL"));
+        smtpSecurityType.setStyle("-fx-background-color: #16213e; -fx-mark-color: white;");
+        smtpSecurityType.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(item);
+                setStyle("-fx-background-color: #16213e; -fx-text-fill: white;");
+            }
+        });
+        smtpSecurityType.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(item);
+                setStyle("-fx-text-fill: white; -fx-background-color: transparent;");
+            }
+        });
+        grid.addRow(2, createLabel("SMTP Güvenliği:"), smtpSecurityType);
+
+        // SMTP Gönderen E-posta Adresi (From)
+        smtpFrom = new TextField(prefs.get("smtp.from", ""));
+        smtpFrom.setPromptText("noreply@example.com");
+        styleTextField(smtpFrom);
+        grid.addRow(3, createLabel("Gönderen E-posta:"), smtpFrom);
+
+        // SMTP Kullanıcı Adı (User)
+        smtpUser = new TextField(prefs.get("smtp.user", ""));
+        smtpUser.setPromptText("user@example.com");
+        styleTextField(smtpUser);
+        grid.addRow(4, createLabel("Kullanıcı Adı:"), smtpUser);
+
+        // SMTP Parolası (Pass)
+        smtpPass = new PasswordField();
+        smtpPass.setText(prefs.get("smtp.pass", ""));
+        smtpPass.setPromptText("••••••••");
+        styleTextField(smtpPass);
+        grid.addRow(5, createLabel("Parola:"), smtpPass);
+
+        // Test Button
+        Button testSmtpBtn = new Button("🔗 Bağlantıyı Test Et");
+        testSmtpBtn.setStyle("-fx-background-color: #1f4068; -fx-text-fill: #8892b0;");
+        testSmtpBtn.setOnAction(e -> testSmtpConnection());
+
+        VBox section = new VBox(15, title, smtpEnabledCheck, grid, testSmtpBtn);
+        section.setPadding(new Insets(10));
+        section.setStyle("-fx-background-color: #0a1628; -fx-background-radius: 10;");
+        return section;
+    }
+
+    private void testSmtpConnection() {
+        String host = smtpHost.getText();
+        String portStr = smtpPort.getText();
+        String user = smtpUser.getText();
+        String pass = smtpPass.getText();
+        String security = smtpSecurityType.getValue();
+
+        if (host.isEmpty() || portStr.isEmpty()) {
+            showError("SMTP Sunucusu ve Port boş olamaz!");
+            return;
+        }
+
+        int port;
+        try {
+            port = Integer.parseInt(portStr);
+        } catch (NumberFormatException e) {
+            showError("Geçersiz port numarası!");
+            return;
+        }
+
+        log("📧 SMTP bağlantısı test ediliyor: " + host + ":" + port + " (" + security + ")");
+
+        // Run in background thread to avoid blocking UI
+        new Thread(() -> {
+            try {
+                java.util.Properties props = new java.util.Properties();
+                props.put("mail.smtp.auth", "true");
+                props.put("mail.smtp.host", host);
+                props.put("mail.smtp.port", String.valueOf(port));
+                props.put("mail.smtp.connectiontimeout", "10000");
+                props.put("mail.smtp.timeout", "10000");
+
+                // Configure based on security type
+                switch (security) {
+                    case "SSL" -> {
+                        props.put("mail.smtp.ssl.enable", "true");
+                        props.put("mail.smtp.ssl.trust", host);
+                        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+                        props.put("mail.smtp.socketFactory.port", String.valueOf(port));
+                    }
+                    case "TLS", "STARTTLS" -> {
+                        props.put("mail.smtp.starttls.enable", "true");
+                        props.put("mail.smtp.starttls.required", "true");
+                        props.put("mail.smtp.ssl.trust", host);
+                    }
+                    // "Yok" - no security
+                }
+
+                javax.mail.Session session = javax.mail.Session.getInstance(props, new javax.mail.Authenticator() {
+                    protected javax.mail.PasswordAuthentication getPasswordAuthentication() {
+                        return new javax.mail.PasswordAuthentication(user, pass);
+                    }
+                });
+
+                // Try to connect
+                String protocol = "SSL".equals(security) ? "smtps" : "smtp";
+                javax.mail.Transport transport = session.getTransport(protocol);
+                transport.connect(host, port, user, pass);
+                transport.close();
+
+                Platform.runLater(() -> {
+                    log("\\u2705 SMTP bağlantısı başarılı!");
+                    showInfo("SMTP bağlantısı başarılı!");
+                });
+            } catch (javax.mail.AuthenticationFailedException e) {
+                Platform.runLater(() -> {
+                    log("\\u274C SMTP kimlik doğrulama hatası: " + e.getMessage());
+                    showError("SMTP kimlik doğrulama hatası!\nKullanıcı adı veya şifre yanlış.");
+                });
+            } catch (javax.mail.MessagingException e) {
+                Platform.runLater(() -> {
+                    log("\\u274C SMTP bağlantı hatası: " + e.getMessage());
+                    showError("SMTP bağlantı hatası:\n" + e.getMessage());
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    log("\\u274C SMTP hatası: " + e.getMessage());
+                    showError("SMTP bağlantı hatası:\n" + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
+    private ComboBox<String> paymentProvider;
+    private TextField paymentApiKey, paymentApiSecret, paymentWebhookSecret, paymentMerchantId;
+    private ToggleSwitch paymentEnabledSwitch, paymentLiveModeSwitch;
+
+    private VBox createPaymentSection() {
+        Label title = new Label("💳 ÖDEME SİSTEMİ");
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        title.setTextFill(Color.web("#e94560"));
+
+        paymentEnabledSwitch = new ToggleSwitch("Ödeme Sistemi Aktif");
+        paymentEnabledSwitch.setSelected(prefs.getBoolean("payment.enabled", false));
+
+        // OFF = Test Modu, ON = Canlı Mod (Satış)
+        paymentLiveModeSwitch = new ToggleSwitch("TEST ◄─► CANLI");
+        paymentLiveModeSwitch.setSelected(!prefs.getBoolean("payment.test", true)); // test=true means live=false
+        paymentLiveModeSwitch.disableProperty().bind(paymentEnabledSwitch.selectedProperty().not());
+
+        GridPane grid = new GridPane();
+        grid.setHgap(15);
+        grid.setVgap(10);
+
+        // Provider
+        paymentProvider = new ComboBox<>();
+        paymentProvider.getItems().addAll("STRIPE", "PAYTR", "SHOPIER");
+        paymentProvider.setValue(prefs.get("payment.provider", "STRIPE"));
+        paymentProvider.setStyle("-fx-background-color: #16213e; -fx-mark-color: white;");
+        paymentProvider.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(item);
+                if (item != null) {
+                    setStyle("-fx-background-color: #16213e; -fx-text-fill: white;");
+                } else {
+                    setStyle("-fx-background-color: #16213e;");
+                }
+            }
+        });
+        paymentProvider.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(item);
+                setStyle("-fx-text-fill: white; -fx-background-color: transparent;");
+            }
+        });
+        grid.addRow(0, createLabel("Provider:"), paymentProvider);
+
+        // Dynamic Labels
+        Label apiKeyLabel = createLabel("API Key:");
+        Label apiSecretLabel = createLabel("API Secret:");
+        Label webhookLabel = createLabel("Webhook Secret:");
+        Label merchantLabel = createLabel("Merchant ID:");
+        Label callbackLabel = createLabel("Callback URL:");
+
+        // API Key
+        paymentApiKey = new TextField(prefs.get("payment.apiKey", ""));
+        styleTextField(paymentApiKey);
+        grid.addRow(1, apiKeyLabel, paymentApiKey);
+
+        // API Secret
+        paymentApiSecret = new PasswordField();
+        paymentApiSecret.setText(prefs.get("payment.apiSecret", ""));
+        styleTextField(paymentApiSecret);
+        grid.addRow(2, apiSecretLabel, paymentApiSecret);
+
+        // Webhook
+        paymentWebhookSecret = new PasswordField();
+        paymentWebhookSecret.setText(prefs.get("payment.webhook", ""));
+        styleTextField(paymentWebhookSecret);
+        grid.addRow(3, webhookLabel, paymentWebhookSecret);
+
+        // Merchant ID
+        paymentMerchantId = new TextField(prefs.get("payment.merchant", ""));
+        styleTextField(paymentMerchantId);
+        grid.addRow(4, merchantLabel, paymentMerchantId);
+
+        // Callback URL (Read Only)
+        TextField paymentCallbackUrl = new TextField();
+        styleTextField(paymentCallbackUrl);
+        paymentCallbackUrl.setEditable(false);
+        grid.addRow(5, callbackLabel, paymentCallbackUrl);
+
+        // Dynamic label updater
+        Runnable updateLabels = () -> {
+            String provider = paymentProvider.getValue();
+            switch (provider) {
+                case "STRIPE" -> {
+                    apiKeyLabel.setText("Secret Key:");
+                    apiSecretLabel.setText("—");
+                    apiSecretLabel.setVisible(false);
+                    paymentApiSecret.setVisible(false);
+                    paymentApiSecret.setManaged(false);
+                    apiSecretLabel.setManaged(false);
+                    webhookLabel.setText("Webhook Secret:");
+                    webhookLabel.setVisible(true);
+                    paymentWebhookSecret.setVisible(true);
+                    paymentWebhookSecret.setManaged(true);
+                    webhookLabel.setManaged(true);
+                    merchantLabel.setText("—");
+                    merchantLabel.setVisible(false);
+                    paymentMerchantId.setVisible(false);
+                    paymentMerchantId.setManaged(false);
+                    merchantLabel.setManaged(false);
+                }
+                case "PAYTR" -> {
+                    apiKeyLabel.setText("Merchant Key:");
+                    apiSecretLabel.setText("Merchant Salt:");
+                    apiSecretLabel.setVisible(true);
+                    paymentApiSecret.setVisible(true);
+                    paymentApiSecret.setManaged(true);
+                    apiSecretLabel.setManaged(true);
+                    webhookLabel.setText("—");
+                    webhookLabel.setVisible(false);
+                    paymentWebhookSecret.setVisible(false);
+                    paymentWebhookSecret.setManaged(false);
+                    webhookLabel.setManaged(false);
+                    merchantLabel.setText("Merchant ID:");
+                    merchantLabel.setVisible(true);
+                    paymentMerchantId.setVisible(true);
+                    paymentMerchantId.setManaged(true);
+                    merchantLabel.setManaged(true);
+                }
+                case "SHOPIER" -> {
+                    apiKeyLabel.setText("API User:");
+                    apiSecretLabel.setText("API Password:");
+                    apiSecretLabel.setVisible(true);
+                    paymentApiSecret.setVisible(true);
+                    paymentApiSecret.setManaged(true);
+                    apiSecretLabel.setManaged(true);
+                    webhookLabel.setText("—");
+                    webhookLabel.setVisible(false);
+                    paymentWebhookSecret.setVisible(false);
+                    paymentWebhookSecret.setManaged(false);
+                    webhookLabel.setManaged(false);
+                    merchantLabel.setText("—");
+                    merchantLabel.setVisible(false);
+                    paymentMerchantId.setVisible(false);
+                    paymentMerchantId.setManaged(false);
+                    merchantLabel.setManaged(false);
+
+                    // Show Callback
+                    callbackLabel.setText("Callback URL:");
+                    callbackLabel.setVisible(true);
+                    callbackLabel.setManaged(true);
+                    paymentCallbackUrl.setVisible(true);
+                    paymentCallbackUrl.setManaged(true);
+
+                    String port = prefs.get("server.web_port", "8080");
+                    String protocol = prefs.getBoolean("ssl.enabled", false) ? "https" : "http";
+                    paymentCallbackUrl.setText(protocol + "://YOUR_IP:" + port + "/api/callbacks/shopier");
+                }
+                default -> {
+                    callbackLabel.setVisible(false);
+                    callbackLabel.setManaged(false);
+                    paymentCallbackUrl.setVisible(false);
+                    paymentCallbackUrl.setManaged(false);
+                }
+            }
+        };
+
+        paymentProvider.valueProperty().addListener((obs, oldVal, newVal) -> updateLabels.run());
+        updateLabels.run(); // Initial state
+
+        VBox section = new VBox(15, title, paymentEnabledSwitch, paymentLiveModeSwitch, grid);
+        section.setPadding(new Insets(10));
+        section.setStyle("-fx-background-color: #0a1628; -fx-background-radius: 10;");
+        return section;
+
+    }
+
+    // ==================== CUSTOM TOGGLE SWITCH ====================
+
+    private static class ToggleSwitch extends HBox {
+        private final javafx.beans.property.BooleanProperty selected = new javafx.beans.property.SimpleBooleanProperty();
+        private final Circle trigger = new Circle(10);
+        private final javafx.scene.shape.Rectangle background = new javafx.scene.shape.Rectangle(40, 20);
+
+        public ToggleSwitch(String text) {
+            super(10);
+            setAlignment(Pos.CENTER_LEFT);
+
+            Label label = new Label(text);
+            label.setTextFill(Color.web("#8892b0"));
+            label.setFont(Font.font("Segoe UI", 12));
+
+            background.setArcWidth(20);
+            background.setArcHeight(20);
+            background.setFill(Color.web("#1f4068"));
+            background.setStroke(Color.web("#444"));
+
+            trigger.setFill(Color.WHITE);
+            trigger.setStroke(Color.web("#444"));
+
+            StackPane switchPane = new StackPane(background, trigger);
+            StackPane.setAlignment(trigger, Pos.CENTER_LEFT);
+            switchPane.setMaxSize(40, 20);
+
+            getChildren().addAll(label, switchPane);
+
+            setOnMouseClicked(event -> {
+                selected.set(!selected.get());
+            });
+
+            selected.addListener((obs, oldVal, newVal) -> {
+                updateState(newVal);
+            });
+
+            updateState(false); // Init
+        }
+
+        private void updateState(boolean active) {
+            if (active) {
+                background.setFill(Color.web("#00aa55"));
+                StackPane.setAlignment(trigger, Pos.CENTER_RIGHT);
+            } else {
+                background.setFill(Color.web("#1f4068"));
+                StackPane.setAlignment(trigger, Pos.CENTER_LEFT);
+            }
+        }
+
+        public boolean isSelected() {
+            return selected.get();
+        }
+
+        public void setSelected(boolean val) {
+            selected.set(val);
+        }
+
+        public javafx.beans.property.BooleanProperty selectedProperty() {
+            return selected;
+        }
     }
 
     private void loadSettings() {
@@ -770,7 +1717,7 @@ public class MainWindow extends Application {
 
         logArea = new TextArea();
         logArea.setEditable(false);
-        logArea.setPrefHeight(120);
+        logArea.setPrefHeight(750);
         logArea.setStyle("-fx-control-inner-background: #0f0f23; -fx-text-fill: #00ff88;");
 
         return new VBox(5, title, logArea);
@@ -790,6 +1737,14 @@ public class MainWindow extends Application {
         String user = prefs.get("mysql.user", "barron");
 
         database.configure(host, port, db, user, "");
+
+        if (prefs.getBoolean("failover.enabled", false)) {
+            database.configureSecondary(
+                    prefs.get("failover.host", ""),
+                    Integer.parseInt(prefs.get("failover.port", "3306")),
+                    prefs.get("failover.user", ""),
+                    prefs.get("failover.pass", ""));
+        }
 
         if (database.connect()) {
             try {
@@ -825,5 +1780,15 @@ public class MainWindow extends Application {
         alert.setTitle(I18n.get("common.error"));
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    @Override
+    public void stop() {
+        System.out.println("Stopping application...");
+        dev.barron.server.LicenseServer.stop();
+        if (database != null)
+            database.close();
+        Platform.exit();
+        System.exit(0);
     }
 }

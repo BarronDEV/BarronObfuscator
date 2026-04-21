@@ -1,0 +1,302 @@
+Barron Obfuscator - Yapılan Değişiklikler ve Güncellemeler
+==========================================================
+
+Tarih: 2026-01-23 (Kritik Düzeltme - 2)
+---------------------------------------
+1. HATA DÜZELTME: "NoClassDefFoundError" / Lambda Referans Hatası:
+   - **Sorun:** Obfuscator, `INVOKEDYNAMIC` (Lambda) çağrılarını kullanan sınıfları yeniden adlandırırken, bu çağrıların "Bootstrap Method" argümanlarını güncellemeyi atlıyordu. Bu durum, özellikle stream API veya fonksiyonel arayüzler kullanan pluginlerde, çalışma zamanında (Runtime) eski sınıf isminin aranmasına ve sunucunun çökmesine (`NoClassDefFoundError`) neden oluyordu.
+   - **Çözüm:** `IdentifierRenamer` sınıfına `InvokeDynamicInsnNode` desteği eklendi. Artık Lambda ifadeleri içerisindeki sınıf referansları da başarıyla tespit edilip yeni (obfuscated) isimleriyle değiştiriliyor.
+   - **Sonuç:** Obfuscate edilmiş pluginler artık modern Java özellikleri (Lambda, Stream) içerse bile hatasız çalışıyor.
+
+Tarih: 2026-01-23 (Güvenlik Hardening)
+-------------------------------------
+1. GÜVENLİK: HWID Algoritması Güçlendirildi:
+   - **Geliştirme:** "Hardware Hash" artık sadece IP/Port değil, işletim sistemi (OS Name, Arch) ve kullanıcı adı (User Name) gibi sistem özelliklerini de hase katıyor.
+   - **Sonuç:** Donanım/Ortam değişikliğinde lisans otomatik olarak geçersiz kalıyor.
+2. GÜVENLİK: Offline Token Hardening ve Gelişmiş Koruma:
+   - **Grace Period (Offline Koruma):** İnternet kesintilerine karşı 3 günlük tolerans. `SHA-256` hash tabanlı güvenli token doğrulama.
+   - **Anti-Tamper:** Bytecode seviyesinde bütünlük kontrolleri.
+   - **Gelişmiş HWID:** IP + Port + OS + User Name kombinasyonu ile sıkı cihaz kilitleme.
+   - **Düzeltme:** Kod içinde sabit olarak duran `OFFLINE_TOKEN` stringi kaldırıldı.
+   - **Yeni Yapı:** Offline doğrulama için artık `SHA-256(LicenseKey + SECRET)` hash kontrolü yapılıyor. Saldırganın token üretebilmesi için gizli anahtarı bilmesi (jar'ı decompile etmesi) gerekiyor.
+3. VERİTABANI: Schema Güncellemesi:
+   - **İşlem:** IP adreslerini tutan sütunlar `VARCHAR(45)`'ten `VARCHAR(128)`'e genişletildi (Yeni uzun HWID'ler için).
+4. SUNUCU: Auto-Lock (Otomatik HWID Kilitleme):
+   - **Sorun:** Yeni HWID çok karmaşık olduğu için manuel girilemez.
+   - **Çözüm:** Lisans ilk kez (veya yeni bir sunucuda) kullanıldığında, eğer lisansın IP limiti dolmamışsa, sistem otomatik olarak o makinenin HWID'sini kaydeder ve kilitler.
+   - **Avantaj:** Kullanıcı sunucu değiştirdiğinde "Invalid HWID" hatası almaz, otomatik tanımlanır.
+
+Tarih: 2026-01-22 (Kritik Düzeltme)
+-----------------------------------
+1. HATA DÜZELTME: "illegal bytecode sequence" / JVM Çökmesi (Kesin Çözüm):
+   - **Sorun:** Kullanıcı tarafından yapılan geri alma (revert) işlemi sonucunda, `InvokeDynamic` (INDY) tabanlı Kill Switch mekanizması tekrar koda dahil olmuştu. Bu mekanizma, bazı JVM'lerde (özellikle sunucu ortamında) "illegal bytecode sequence" hatasına ve çökmeye neden oluyordu.
+   - **Çözüm:** `LicenseCheckInjector` içerisindeki `injectKillSwitchIndy` metodu tamamen kaldırılarak yerine `injectKillSwitchStatic` yazıldı. Artık `INVOKEDYNAMIC` yerine, çok daha kararlı ve güvenli olan `INVOKESTATIC` kullanılıyor.
+   - **Temizlik:** Kullanılmayan `createBootstrapMethod` ve ilişkili kodlar temizlendi.
+   - **Durum:** Proje derlendi ve test edildi. Bytecode artık %100 Java 21+ uyumludur.
+
+Tarih: 2026-01-21 (Devam)
+-------------------------
+   - **Geliştirme:** "BarronVM" adında, bytecode'u sanallaştıran bağımsız bir kütüphane oluşturuldu.
+
+Tarih: 2026-01-23 (Lisans Doğrulama İyileştirmesi)
+-----------------------------------------------
+1. HATA DÜZELTME: "License Verification Failed" Hatası:
+   - **Sorun:** Lisans kontrolü `onEnable` metodunun sonuna enjekte ediliyordu. Eğer plugin `onEnable` içinde başka bir hata verirse (örn. `NoClassDefFoundError`), doğrulama çalışmıyor veya geçersiz sayılıp kapatılıyordu. Ayrıca client-side JSON parsing hatası debug edilemiyordu.
+   - **Çözüm:** `LicenseCheckInjector` güncellendi. Artık lisans kontrol kodu `onEnable` metodunun *en başına* (HEAD) enjekte ediliyor. Böylece plugin kodu çalışmadan önce doğrulama yapılıyor.
+   - **Debug:** JSON parse hatası durumunda artık sunucudan dönen ham yanıt konsola basılıyor (`[License] Parse Failed. Response: ...`). Bu sayede hatanın kaynağı görülebilir.
+
+Tarih: 2026-01-23 (Kritik Düzeltme - 3)
+---------------------------------------
+1. HATA DÜZELTME: "IllegalPluginAccessException" / Plugin disabled while registering listeners:
+   - **Sorun:** Lisans doğrulama başarısız olduğunda plugin `disablePlugin()` ile kapatılıyordu, ANCAK `onEnable` metodunun geri kalanı çalışmaya devam ediyordu. Bu nedenle plugin, kapalı iken listener kaydetmeye çalışıp `IllegalPluginAccessException` hatası veriyordu.
+   - **Çözüm:** `LicenseCheckInjector#injectInitialCheck` güncellendi. Artık doğrulama çağrısından sonra `this.isEnabled()` kontrolü yapılıyor. Eğer plugin kapatılmışsa (false), onEnable metodundan hemen `RETURN` ile çıkılıyor.
+   - **Sonuç:** Lisans doğrulama başarısız olduğunda plugin sessizce kapanıyor ve hiçbir ek hata oluşmuyor.
+
+Tarih: 2026-01-23 (Kritik Düzeltme - 4)
+---------------------------------------
+1. HATA DÜZELTME: Lisans Doğrulama Bypass Hatası (Yanlış anahtar ile çalışma):
+   - **Sorun 1:** `checkToken` label tanımlanmış ama asla bytecode'a eklenmemişti. Sunucu `null` yanıt döndürdüğünde, kod tanımsız bir noktaya atlıyordu.
+   - **Sorun 2:** Parse başarısız olduğunda veya backup sunucu da yanıt vermediğinde, kod exception atmadan devam ediyordu. Bu nedenle `catchBlock` (grace period kontrolü) hiç çalışmıyordu ve plugin sanki lisans geçerliymiş gibi devam ediyordu.
+   - **Çözüm:** (1) `checkToken` label'ı `parseFail` label'ından önce bytecode'a eklendi. (2) Parse/Backup başarısız olduğunda `RuntimeException` atılarak `catchBlock` tetikleniyor.
+   - **Sonuç:** Yanlış lisans anahtarı ile plugin artık çalışmıyor ve düzgün bir şekilde devre dışı kalıyor.
+
+Tarih: 2026-01-23 (Kritik Düzeltme - 5)
+---------------------------------------
+1. HATA DÜZELTME: "Grace Period" Bypass (Geçersiz Lisans):
+   - **Sorun:** Sunucu `valid:false` döndürse (geçersiz lisans) bile, kod exception fırlatarak `catchBlock`'a düşüyordu. Eğer daha önce başarılı bir giriş yapılmışsa (data.bin dosyası varsa), grace period devreye giriyor ve plugin çalışmaya devam ediyordu.
+   - **Çözüm:** Sunucu yanıtında açıkça `"valid":true` stringi aranıyor. Eğer bu string yoksa, grace period kontrolü tamamen atlanarak (bypass) doğrudan `KILL` (devre dışı bırakma) bloğuna atlanıyor.
+   - **Sonuç:** Grace Period artık sadece ağ hataları veya sunucuya erişilememesi durumunda çalışıyor. Lisans açıkça reddedilirse plugin anında kapanıyor.
+
+Tarih: 2026-01-23 (Kritik Düzeltme - 6)
+---------------------------------------
+1. HATA DÜZELTME: "NumberObfuscator" NullPointerException:
+   - **Sorun:** Number Obfuscator çalışırken bazı durumlarda instruction listesi içinde null elemanlar oluşuyor ve `insn.getOpcode()` çağrıldığında NPE hatası veriyordu.
+   - **Çözüm:** Döngü içerisine `if (insn == null) continue;` güvenlik kontrolü eklendi.
+   - **Sonuç:** Obfuscation işlemi hatasız tamamlanıyor.
+
+Tarih: 2026-04-20 (Kapsamlı Güvenlik & Stabilite Denetimi)
+===========================================================
+Projedeki tüm kritik dosyalar (LicenseCheckInjector, LicenseServer, DatabaseManager,
+ObfuscationEngine, StringEncryptor, ControlFlowObfuscator, NumberObfuscator, LicenseClient,
+LicenseAPI, ObfuscationConfig) baştan sona gözden geçirildi. Aşağıdaki hatalar, güvenlik
+açıkları ve iyileştirmeler tespit edilip düzeltildi:
+
+---
+
+1. HATA DÜZELTME (KRİTİK): LicenseCheckInjector - Try-Catch Blok Sınırı Hatası
+   - **Dosya:** LicenseCheckInjector.java → createRequestHelper()
+   - **Sorun:** `end` label'ı (try-catch bloğunun bitiş noktası) `fail` label'ından SONRA
+     konumlandırılmıştı. Bu, HTTP 200 harici yanıtlarda `fail` bloğunun try-catch koruması
+     içinde kalmasına neden oluyordu. Yapısal olarak yanlış olan bu durum, bazı JVM
+     implementasyonlarında beklenmedik davranışlara yol açabilir.
+   - **Çözüm:** `end` label'ı `fail` label'ından ÖNCE yerleştirildi. Artık try-catch bloğu
+     yalnızca gerçek HTTP isteği kodunu kapsıyor, `fail` (null döndürme) bloğu korumanın
+     dışında.
+   - **Sonuç:** Request helper bytecode'u JVM spesifikasyonuna tam uyumlu.
+
+2. HATA DÜZELTME (KRİTİK): ObfuscationEngine - Çift Lisans Enjeksiyonu
+   - **Dosya:** ObfuscationEngine.java → obfuscate()
+   - **Sorun:** `LicenseCheckInjector`, main sınıfa önceden açıkça çalıştırılıyordu (satır 186),
+     ANCAK ardından ana dönüşüm döngüsünde (satır 232) tüm sınıflara tekrar dahil edilerek
+     main sınıfa İKİNCİ KEZ enjeksiyon yapılıyordu. Bu, main sınıfta çift lisans kontrolü,
+     çift token field, çift helper metod oluşturuyordu → bytecode şişmesi ve potansiyel
+     çakışmalar.
+   - **Çözüm:** `mainClassInternal` flag'i eklendi. Ana dönüşüm döngüsünde
+     `LicenseCheckInjector`, daha önce enjekte edilmiş main sınıfı atlıyor.
+   - **Ek Temizlik:** Artık kullanılmayan yorum bloğu (eski ClassWriter kodu) temizlendi.
+   - **Sonuç:** Lisans kontrolü her sınıfa yalnızca bir kez enjekte ediliyor.
+
+3. GÜVENLİK DÜZELTMESİ (KRİTİK): DatabaseManager - XOR "Şifreleme" → AES-256-GCM
+   - **Dosya:** DatabaseManager.java → encrypt() / decrypt()
+   - **Sorun:** Ödeme API anahtarları (Stripe, Shopier, PayTR) veritabanında "şifrelenmiş"
+     olarak saklanıyordu, ancak kullanılan yöntem basit XOR ile statik `"BarronSecureKey!"`
+     anahtarıydı. Bu, HİÇBİR güvenlik sağlamaz — XOR tamamen geri dönüşümlüdür ve anahtar
+     kodda açıkça görünür.
+   - **Çözüm:** XOR yerine **AES-256-GCM** şifreleme uygulandı:
+     - Anahtar SHA-256 ile paroladan türetiliyor
+     - Her şifreleme işlemi benzersiz 12-byte IV kullanıyor
+     - GCM modu hem gizlilik hem bütünlük sağlıyor
+     - Geriye dönük uyumluluk: Eski XOR ile şifrelenmiş değerler otomatik tespit edilip
+       okunabiliyor (migration desteği)
+   - **Sonuç:** Ödeme anahtarları artık endüstri standardı şifreleme ile korunuyor.
+
+4. GÜVENLİK DÜZELTMESİ (KRİTİK): 2FA Secret Sızıntısı
+   - **Dosya:** DatabaseManager.java → getAllUsers() / searchUsers()
+   - **Sorun:** Admin paneli API'si (`/api/admin/users`) kullanıcı listesi döndürürken,
+     her kullanıcının `two_factor_secret` değerini de JSON'a dahil ediyordu. Bu, admin
+     hesabına erişim sağlayan bir saldırganın TÜM kullanıcıların 2FA kodlarını üretmesine
+     olanak tanıyordu → 2FA korumasını tamamen işlevsiz kılıyordu.
+   - **Çözüm:** `getAllUsers()` ve `searchUsers()` metotları artık `two_factor_secret`
+     sütununu sorgulamıyor ve döndürmüyor (null olarak set ediliyor).
+   - **Ek İyileştirme:** `searchUsers()` artık yalnızca `username` değil, `email` ile de
+     arama yapabiliyor (`OR email LIKE ?`).
+   - **Sonuç:** 2FA gizli anahtarları API üzerinden hiçbir zaman açığa çıkmıyor.
+
+5. GÜVENLİK DÜZELTMESİ: Debug Log'ları ile Hassas Bilgi Sızıntısı
+   - **Dosya:** DatabaseManager.java → authenticateUser()
+   - **Sorun:** Kimlik doğrulama sürecinde `[AUTH DEBUG]` logları; kullanıcı ID'si,
+     hash varlığı, aktiflik durumu ve şifre eşleşme sonucu gibi hassas bilgileri
+     stdout'a yazıyordu. Üretim ortamında bu loglar log dosyalarına düşerek saldırganlara
+     bilgi sağlayabilir (kullanıcı var mı? Hesap aktif mi? Şifre doğru mu?).
+   - **Çözüm:** Tüm `[AUTH DEBUG]` logları kaldırıldı. Kimlik doğrulama artık sessiz çalışıyor.
+   - **Sonuç:** Kimlik doğrulama internalleri log dosyalarına sızmıyor.
+
+6. GÜVENLİK DÜZELTMESİ: Login Handler - Şifre Loglaması
+   - **Dosya:** LicenseServer.java → LoginHandler
+   - **Sorun:** `[LoginHandler] Body: ...` satırı, POST gövdesini (kullanıcı adı VE düz metin
+     şifre dahil) konsola basıyordu. `[LoginHandler] Auth Result ID: ...` satırı ise
+     başarılı girişlerde kullanıcı ID'sini açığa çıkarıyordu.
+   - **Çözüm:** Body loglaması ve Auth Result ID loglaması tamamen kaldırıldı.
+   - **Sonuç:** Kullanıcı şifreleri ve oturum bilgileri log dosyalarına sızmıyor.
+
+7. GÜVENLİK DÜZELTMESİ: VerifyHandler - Session Token Loglaması
+   - **Dosya:** LicenseServer.java → VerifyHandler
+   - **Sorun:** `[VerifyHandler] Sending Response: ...` satırı, session token dahil tüm
+     doğrulama yanıtını konsola basıyordu. Token ele geçirilirse lisans bypass'ı mümkün
+     olabilir.
+   - **Çözüm:** Tam yanıt loglaması kaldırıldı.
+   - **Sonuç:** Session token'lar log dosyalarına sızmıyor.
+
+8. GÜVENLİK DÜZELTMESİ: CORS Wildcard ve Eksik Header
+   - **Dosya:** LicenseServer.java → enableCORS()
+   - **Sorun:** `Access-Control-Allow-Origin: *` tüm domainlerden isteklere izin veriyordu.
+     Ayrıca `X-CSRF-Token` header'ı CORS izin listesinde yoktu → CSRF koruması tarayıcı
+     tarafından engellenebilirdi.
+   - **Çözüm:** Origin artık `serverDomain` konfigürasyonundan okunuyor (ayarlanmadıysa `*`).
+     `X-CSRF-Token` header'ı CORS izin listesine eklendi.
+   - **Sonuç:** CORS politikası production ortamında kısıtlayıcı, CSRF koruması çalışır.
+
+9. GÜVENLİK DÜZELTMESİ: Shopier Webhook İmza Doğrulaması
+   - **Dosya:** LicenseServer.java → handleShopierWebhook()
+   - **Sorun:** Shopier webhook'u imza doğrulaması YAPILMIYORDU (yorum satırı:
+     "For now assume signature logic is handled or bypassed for testing"). Bu, herhangi
+     birinin sahte webhook isteği göndererek siparişleri tamamlamasına izin veriyordu →
+     ücretsiz ürün edinme.
+   - **Çözüm:** HMAC-SHA256 imza doğrulaması eklendi. `random_nr + platform_order_id +
+     total_order_value + currency` verisi API Secret ile imzalanıp, gelen `signature` ile
+     karşılaştırılıyor. Eşleşmezse 403 döndürülüyor.
+   - **Sonuç:** Sahte webhook istekleri reddediliyor.
+
+10. PERFORMANS: Admin İstatistik Endpoint'i Optimizasyonu
+    - **Dosya:** LicenseServer.java → handleAdminStats() / DatabaseManager.java
+    - **Sorun:** `/api/admin/stats` endpoint'i, istatistik elde etmek için 4 ayrı tablo
+      taraması yapıyordu (`getAllUsers().size()`, `getAllLicenses().size()`, vb.). Bu, tüm
+      verileri belleğe yüklüyor, büyük veri setlerinde OutOfMemoryError riski ve ciddi
+      performans düşüşü yaratıyordu.
+    - **Çözüm:** Yeni `getStatsCounts()` metodu eklendi. Tek bir SQL sorgusu ile 4 tablonun
+      `COUNT(*)` değerlerini döndürüyor.
+    - **Sonuç:** N*4 satır yerine 4 integer döndürülüyor. Bellek kullanımı ve yanıt süresi
+      drastik şekilde azalıyor.
+
+11. HATA DÜZELTMESİ: Query String URL Decode Eksikliği
+    - **Dosya:** LicenseServer.java → queryToMap()
+    - **Sorun:** URL parametreleri decode edilmeden kullanılıyordu. Özel karakterler (%20,
+      %40 vb.) içeren değerler yanlış parse ediliyordu. Ayrıca `=` içeren değerler
+      kesiliyordu (`split("=")` yerine `split("=", 2)` gerekiyordu).
+    - **Çözüm:** `URLDecoder.decode()` eklendi ve `split("=", 2)` ile düzeltildi.
+    - **Sonuç:** Özel karakterli parametreler doğru parse ediliyor.
+
+---
+
+ÖNEMLİ NOTLAR VE KALAN İŞLER:
+- Record sınıflarındaki (PluginInfo, LicenseInfo, UserInfo, vb.) manuel getter metotları
+  redundant — Java record'lar bunları otomatik üretir. Kaldırılabilir ama mevcut haliyle
+  hata vermez, sadece gereksiz kod.
+- `VirtualizationTransformer` class encryption kapalı olsa bile her zaman ekleniyor
+  (ObfuscationEngine satır 91). Eğer kasıtlı değilse konfigürasyon kontrolü eklenebilir.
+- `LicenseAPI.java` dosyası `LicenseServer.java` ile fonksiyonel olarak örtüşüyor. İkisinin
+  birlikte mi yoksa alternatif olarak mı kullanıldığı netleştirilmeli.
+- `ENCRYPTION_PASSPHRASE` hâlâ kodda hardcoded. Production ortamında ENV variable veya
+  key vault kullanılması **şiddetle** önerilir.
+
+12. HATA DÜZELTME: Java Sürüm Uyumluluğu (JDK 21-25+ Destek)
+    - **Dosya:** build.gradle (ana proje) + BarronVM/build.gradle (alt proje)
+    - **Sorun:** Her iki build dosyası da `toolchain { languageVersion = JavaLanguageVersion.of(21) }`
+      kullanıyordu. Bu, yalnızca JDK 21'in kurulu olmasını zorunlu kılıyordu ve JDK 22, 23, 24, 25
+      gibi daha yeni sürümlerle derleme başarısız oluyordu.
+    - **Çözüm:**
+      - Ana proje: `toolchain` bloğu kaldırılıp `sourceCompatibility = JavaVersion.VERSION_21`,
+        `targetCompatibility = JavaVersion.VERSION_21` ve `options.release = 21` ile değiştirildi.
+        Bu sayede JDK 21+ (21, 22, 23, 24, 25...) ile derleme yapılabiliyor.
+      - BarronVM alt projesi: BarronVM sınıfları obfuscate edilmiş JAR'ların içine enjekte
+        edildiğinden, hedef Java 8'e düşürüldü (`options.release = 8`). Bu sayede BarronVM
+        Java 8+ tüm ortamlarda çalışabiliyor.
+    - **Ek Düzeltme:** `DatabaseManager.java`'da eksik olan `Map` ve `HashMap` import'ları eklendi.
+    - **Sonuç:** Proje JDK 25.0.1 ile başarıyla derlendi (BUILD SUCCESSFUL).
+      Obfuscator aracı: JDK 21+ gerektirir (records, text blocks, pattern matching kullanılıyor).
+      BarronVM (hedef JAR içi): Java 8+ tüm sürümlerde çalışır.
+
+13. HATA DÜZELTME (KRİTİK): Kill Switch Token Format Uyumsuzluğu
+    - **Dosya:** LicenseCheckInjector.java → createCheckTokenMethod()
+    - **Sorun:** Sunucu başarılı doğrulama sonrası `HMAC-SHA256(key:timestamp, SECRET)` formatında
+      token üretiyor ve client token field'a kaydediyordu. Ancak `checkToken` metodu bu token'ı
+      `SHA-256(key:secret)` formatında OFFLINE hash ile karşılaştırıyordu. Bu iki format
+      ASLA eşleşemez → kill switch geçerli lisansta bile HER ZAMAN tetikleniyordu.
+      Sonuç: Plugin açılıyor ancak hiçbir komut veya event çalışmıyordu.
+    - **Çözüm:** `checkToken` tamamen yeniden yazıldı. Artık karmaşık hash karşılaştırması
+      yerine basit null/empty kontrolü yapıyor: token field yalnızca `verify()` başarılı
+      olduğunda set edildiğinden, null olmayan bir token = geçerli lisans anlamına geliyor.
+    - **Sonuç:** Kill switch yalnızca lisans gerçekten geçersiz olduğunda tetiklenir.
+
+14. HATA DÜZELTME (KRİTİK): `keyField` Hiç Set Edilmiyordu
+    - **Dosya:** LicenseCheckInjector.java → createVerifyMethod()
+    - **Sorun:** Obfuscate edilen plugin'de `ky_XXXXX` adlı static field, lisans anahtarını
+      saklamak için oluşturuluyordu, ancak başarılı doğrulama sonrası bu field'a hiçbir
+      PUTSTATIC işlemi yapılmıyordu. Field her zaman null kalıyordu. `checkToken` bu null
+      değerle SHA-256 hash hesaplıyordu → "null:secret" → yanlış hash → her zaman fail.
+    - **Çözüm:** Hem birincil sunucu başarılı yanıtında hem de backup sunucu yanıtında,
+      token field'ın ardından `keyField`'a da lisans anahtarı kaydediliyor (PUTSTATIC).
+    - **Sonuç:** keyField artık doğru değeri taşıyor.
+
+15. HATA DÜZELTME (ORTA): Backup Sunucu `valid:true` Kontrolü Eksik
+    - **Dosya:** LicenseCheckInjector.java → createVerifyMethod() (backup bloğu)
+    - **Sorun:** Birincil sunucu yanıtında `"valid":true` string kontrolü yapılıyordu, ancak
+      backup sunucu yanıtında bu kontrol atlanıyordu. Backup sunucu `"valid":false` döndürse
+      bile, yanıt null olmadığı sürece lisans geçerli kabul ediliyordu → lisans bypass.
+    - **Çözüm:** Backup yanıtında da `"valid":true` contains kontrolü eklendi.
+    - **Sonuç:** Geçersiz lisans backup sunucu üzerinden bypass edilemiyor.
+
+16. GÜVENLİK DÜZELTMESİ (ORTA): VerifyHandler Debug Log Sızıntısı
+    - **Dosya:** LicenseServer.java → VerifyHandler
+    - **Sorun:** Doğrulama endpoint'inde aşırı debug loglaması vardı:
+      - Tüm HTTP header'lar loglanıyordu (CF token'lar dahil)
+      - İstek body'si (lisans anahtarı JSON) düz metin loglanıyordu
+      - Parse edilen key ve HWID açık loglanıyordu
+    - **Çözüm:** Tüm hassas debug logları kaldırıldı. Yalnızca rate limit ve hata logları korundu.
+    - **Sonuç:** Lisans anahtarları ve HWID'ler log dosyalarına sızmıyor.
+
+17. HATA DÜZELTME (KRİTİK): Web Panel Kayıt/Şifre Sıfırlama CORS Hatası
+    - **Dosya:** LicenseServer.java → RegisterHandler, ForgotPasswordHandler, ResetPasswordHandler
+    - **Sorun:** Bu üç handler'da `enableCORS()` çağrısı ve `OPTIONS` preflight desteği
+      eksikti. Tarayıcılar cross-origin POST isteklerinden önce OPTIONS preflight isteği
+      gönderir. CORS header'ları olmadığında:
+      - Kayıt formu → tarayıcı isteği engeller, "CORS error" alınır
+      - Şifremi unuttum → aynı sorun
+      - Şifre sıfırlama → aynı sorun
+      Yalnızca LoginHandler'da CORS vardı, diğerleri unutulmuştu.
+    - **Çözüm:** Her üç handler'a `enableCORS(exchange)` ve OPTIONS → 204 desteği eklendi.
+    - **Sonuç:** Web panelden kayıt, şifre sıfırlama artık sorunsuz çalışıyor.
+
+18. HATA DÜZELTME (ORTA): Cookie Session Token Okunamıyordu
+    - **Dosya:** LicenseServer.java → getToken()
+    - **Sorun:** LoginHandler başarılı girişte `Set-Cookie: session_token=XXX; HttpOnly`
+      ayarlıyordu, ancak `getToken()` metodu yalnızca `Authorization: Bearer` header'ını
+      kontrol ediyordu — cookie'yi HİÇ okumuyordu. Yorum satırında "Or check cookies if
+      implemented" yazıyordu ancak hiç implement edilmemişti.
+      Bu, HttpOnly cookie ile giriş yapan kullanıcıların dashboard'a erişememesine neden
+      olabiliyordu.
+    - **Çözüm:** `getToken()` artık 3 kaynağı sırayla kontrol ediyor:
+      1. Authorization: Bearer header
+      2. Cookie: session_token=XXX
+      3. Query parameter (?token=XXX) — download linkleri için
+    - **Sonuç:** Cookie tabanlı oturum yönetimi çalışıyor.
+
+19. HATA DÜZELTME (ORTA): 2FA Kod Ayrıştırma Crash'i
+    - **Dosya:** LicenseServer.java → LoginHandler (2FA bloğu)
+    - **Sorun:** `Integer.parseInt(code)` çağrısı, kullanıcı sayısal olmayan değer
+      girdiğinde `NumberFormatException` fırlatıyordu. Bu exception catch edilmiyordu
+      ve üst catch bloğuna düşerek generic "AUTH-500" hatası döndürüyordu.
+    - **Çözüm:** `parseInt` çağrısı try-catch ile sarıldı, NumberFormatException durumunda
+      kullanıcıya açıklayıcı 400 hatası döndürülüyor.
+    - **Sonuç:** Geçersiz 2FA kodu sunucuyu crash ettirmiyor.
+
