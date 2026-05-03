@@ -53,6 +53,11 @@ public class ControlFlowObfuscator implements Transformer {
 
             // For huge methods: only add entry check (minimal protection)
             if (methodSize > HUGE_METHOD_THRESHOLD) {
+                // To absolutely avoid "Method too large" for massive initializers like XParticle.<clinit>,
+                // skip control flow obfuscation entirely for methods larger than 8000
+                if (methodSize > 8000) {
+                    continue;
+                }
                 modified |= addDeadBranches(classNode, method);
                 continue;
             }

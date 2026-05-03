@@ -34,6 +34,12 @@ public class NumberObfuscator implements Transformer {
             if (method.instructions == null)
                 continue;
 
+            // To absolutely avoid "Method too large" for massive initializers like XParticle.<clinit>,
+            // skip number obfuscation entirely for methods larger than 8000 instructions
+            if (method.instructions.size() > 8000) {
+                continue;
+            }
+
             AbstractInsnNode[] instructions = method.instructions.toArray();
             for (AbstractInsnNode insn : instructions) {
                 if (insn == null)

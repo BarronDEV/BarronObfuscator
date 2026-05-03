@@ -79,6 +79,7 @@ application {
 
 // Create executable fat JAR
 jar {
+    dependsOn ':BarronVM:jar'
     manifest {
         attributes(
             'Main-Class': 'dev.barron.BarronLauncher',

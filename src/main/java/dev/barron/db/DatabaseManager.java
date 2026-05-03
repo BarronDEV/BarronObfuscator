@@ -248,7 +248,7 @@ public class DatabaseManager {
                 dataSource.close();
             }
 
-            String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=true&serverTimezone=UTC&autoReconnect=true",
+            String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=true&serverTimezone=UTC&autoReconnect=true&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true",
                     host, port, database);
 
             // Configure HikariCP
@@ -339,7 +339,7 @@ public class DatabaseManager {
                 secondaryDataSource.close();
             }
 
-            String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=true&serverTimezone=UTC&autoReconnect=true",
+            String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=true&serverTimezone=UTC&autoReconnect=true&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true",
                     secondaryHost, secondaryPort, database);
 
             HikariConfig config = new HikariConfig();

@@ -53,8 +53,8 @@ public class StringEncryptor implements Transformer {
                         // Track how much we're adding to this method to avoid "Method too large"
                         int addedInstructions = 0;
                         int methodBaseSize = method.instructions.size();
-                        // Safe limit: leave room for other transformers (max ~40000 instructions)
-                        int maxAdditions = Math.max(0, 35000 - methodBaseSize);
+                        // Safe limit: JVM 64KB bytecode limit usually hits around 15k-20k instructions
+                        int maxAdditions = Math.max(0, 8000 - methodBaseSize);
 
                         for (AbstractInsnNode insn : method.instructions.toArray()) {
                                 if (insn instanceof LdcInsnNode ldc && ldc.cst instanceof String str) {
@@ -71,6 +71,12 @@ public class StringEncryptor implements Transformer {
                                         // Calculate how many instructions this string would add
                                         // Each int array element = 4 instructions (DUP, index, value, IASTORE)
                                         int estimatedInstructions = str.length() * 4 * 2; // * 2 for key arrays
+
+                                        // If the method is getting too large, skip encryption for this string entirely
+                                        // to prevent "Method too large" JVM error (64KB bytecode limit)
+                                        if (methodBaseSize + addedInstructions > 10000) {
+                                                continue;
+                                        }
 
                                         // If this would exceed limit, use compact Base64 method
                                         boolean useCompact = (addedInstructions + estimatedInstructions > maxAdditions)

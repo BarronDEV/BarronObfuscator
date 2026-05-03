@@ -54,6 +54,10 @@ public class ReferenceHider implements Transformer {
             if (method.name.startsWith("<"))
                 continue;
 
+            // Skip huge methods to prevent 'Method too large' JVM limitation
+            if (method.instructions.size() > 5000)
+                continue;
+
             for (AbstractInsnNode insn : method.instructions.toArray()) {
                 // Hide static method invocations
                 if (insn instanceof MethodInsnNode methodInsn) {

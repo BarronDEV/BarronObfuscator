@@ -115,7 +115,12 @@ public class ObfuscationConfig {
             "net.luckperms.**",
             "com.comphenix.**",
             "javax.**",
-            "jakarta.**"));
+            "jakarta.**",
+            // Shaded libraries and specific API frameworks
+            "**.shades.**",
+            "**.shaded.**",
+            "**.shadow.**",
+            "xyz.geik.glib.**"));
 
     // Keep these method names (annotations, event handlers etc)
     private List<String> keepMethodNames = new ArrayList<>(List.of(

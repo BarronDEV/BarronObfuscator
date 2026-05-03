@@ -332,6 +332,12 @@ public class MainWindow extends Application {
         if (selectedJar == null)
             return;
 
+        if (serverModeEnabled && !database.isConnected()) {
+            showError("MySQL veritabanına bağlı değilsiniz! Lütfen önce Ayarlar'dan MySQL bağlantısını kurun ve doğru çalıştığından emin olun.");
+            log("⚠️ HATA: MySQL bağlantısı yok. Şifreleme iptal edildi.");
+            return;
+        }
+
         log("═══════════════════════════════════════");
         log("Şifreleme başlıyor: " + selectedJar.getName());
         log("Mod: " + (serverModeEnabled ? "Sunucu Taraflı" : "Normal"));
