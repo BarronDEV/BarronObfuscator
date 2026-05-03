@@ -237,6 +237,18 @@ public class ObfuscationEngine {
         // Add resources from context (transformers might have modified them)
         outputEntries.putAll(context.getResourceEntries());
 
+        // Build a ClassReader map from all project classes for better type resolution
+        Map<String, ClassReader> classReaderMap = new HashMap<>();
+        for (Map.Entry<String, ClassNode> entry : context.getClasses().entrySet()) {
+            try {
+                ClassWriter tempWriter = new ClassWriter(0);
+                entry.getValue().accept(tempWriter);
+                classReaderMap.put(entry.getValue().name, new ClassReader(tempWriter.toByteArray()));
+            } catch (Exception ignored) {
+                // Skip classes that can't be serialized for the map
+            }
+        }
+
         // Add transformed classes
         for (Map.Entry<String, ClassNode> entry : context.getClasses().entrySet()) {
             String originalName = entry.getKey();
@@ -245,18 +257,40 @@ public class ObfuscationEngine {
             // Get new class name if renamed
             String newName = context.getNewClassName(originalName);
 
-            // Use SafeClassWriter to handle missing types on classpath
+            // Use SafeClassWriter with project class map for better type resolution
             ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS,
-                    Collections.emptyMap());
+                    classReaderMap);
             try {
                 classNode.accept(writer);
                 outputEntries.put(newName + ".class", writer.toByteArray());
             } catch (Exception e) {
-                // If COMPUTE_FRAMES fails, try with just COMPUTE_MAXS
-                log("[WARN] Frame computation failed for " + originalName + ", retrying without frames...");
-                writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS, Collections.emptyMap());
-                classNode.accept(writer);
-                outputEntries.put(newName + ".class", writer.toByteArray());
+                // If COMPUTE_FRAMES fails, serialize with COMPUTE_MAXS first,
+                // then re-read through ClassReader with SKIP_FRAMES and re-serialize
+                // with COMPUTE_FRAMES to force proper StackMapTable recalculation.
+                log("[WARN] Frame computation failed for " + originalName + ", retrying with frame rebuild...");
+                try {
+                    // Step 1: Write with COMPUTE_MAXS (no frames, but valid bytecode)
+                    ClassWriter maxsWriter = new SafeClassWriter(ClassWriter.COMPUTE_MAXS, classReaderMap);
+                    classNode.accept(maxsWriter);
+                    byte[] rawBytes = maxsWriter.toByteArray();
+
+                    // Step 2: Re-read with SKIP_FRAMES to discard broken frames
+                    ClassReader reReader = new ClassReader(rawBytes);
+                    ClassNode freshNode = new ClassNode();
+                    reReader.accept(freshNode, ClassReader.SKIP_FRAMES);
+
+                    // Step 3: Write again with COMPUTE_FRAMES using the fresh ClassReader
+                    ClassWriter frameWriter = new SafeClassWriter(reReader,
+                            ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS, classReaderMap);
+                    freshNode.accept(frameWriter);
+                    outputEntries.put(newName + ".class", frameWriter.toByteArray());
+                } catch (Exception e2) {
+                    // Last resort: COMPUTE_MAXS only (may fail on Java 8+ verify but better than nothing)
+                    log("[WARN] Frame rebuild also failed for " + originalName + ", writing with COMPUTE_MAXS only.");
+                    ClassWriter lastResort = new SafeClassWriter(ClassWriter.COMPUTE_MAXS, classReaderMap);
+                    classNode.accept(lastResort);
+                    outputEntries.put(newName + ".class", lastResort.toByteArray());
+                }
             }
         }
 
