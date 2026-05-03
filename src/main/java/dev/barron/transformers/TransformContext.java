@@ -145,12 +145,12 @@ public class TransformContext {
         return methodRemapping.getOrDefault(className + "." + methodName + descriptor, methodName);
     }
 
-    public void addFieldRemapping(String className, String fieldName, String newName) {
-        fieldRemapping.put(className + "." + fieldName, newName);
+    public void addFieldRemapping(String className, String fieldName, String descriptor, String newName) {
+        fieldRemapping.put(className + "." + fieldName + ":" + descriptor, newName);
     }
 
-    public String getNewFieldName(String className, String fieldName) {
-        return fieldRemapping.getOrDefault(className + "." + fieldName, fieldName);
+    public String getNewFieldName(String className, String fieldName, String descriptor) {
+        return fieldRemapping.getOrDefault(className + "." + fieldName + ":" + descriptor, fieldName);
     }
 
     // Resources (e.g. plugin.yml)

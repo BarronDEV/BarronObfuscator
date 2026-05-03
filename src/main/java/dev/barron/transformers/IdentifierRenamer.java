@@ -90,9 +90,9 @@ public class IdentifierRenamer implements Transformer {
             if (shouldRenameField(classNode, field)) {
                 String oldName = field.name;
                 String newName = context.getFieldNameGenerator().generateName(
-                        classNode.name + "." + oldName);
+                        classNode.name + "." + oldName + ":" + field.desc);
 
-                context.addFieldRemapping(classNode.name, oldName, newName);
+                context.addFieldRemapping(classNode.name, oldName, field.desc, newName);
                 field.name = newName;
                 context.incrementFieldsRenamed();
                 modified = true;
@@ -187,7 +187,7 @@ public class IdentifierRenamer implements Transformer {
                             }
                         } else if (insn instanceof FieldInsnNode fin) {
                             // UPDATE NAME FIRST
-                            String newName = context.getNewFieldName(fin.owner, fin.name);
+                            String newName = context.getNewFieldName(fin.owner, fin.name, fin.desc);
                             if (newName != null) {
                                 fin.name = newName;
                             }
