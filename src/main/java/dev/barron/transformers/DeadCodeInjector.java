@@ -106,13 +106,22 @@ public class DeadCodeInjector implements Transformer {
             }
         }
 
+        // Track used field names
+        Set<String> usedFieldNames = new HashSet<>();
+        for (FieldNode fn : classNode.fields) {
+            usedFieldNames.add(fn.name);
+        }
+
         // EXTREME RANDOMIZATION: Field count (3-12)
         int fieldCount = randomEngine.getRandomInt(3, 12);
 
         for (int i = 0; i < fieldCount; i++) {
-            FieldNode fakeField = generateExtremelyRandomField();
-            classNode.fields.add(fakeField);
-            modified = true;
+            FieldNode fakeField = generateExtremelyRandomField(usedFieldNames);
+            if (fakeField != null) {
+                classNode.fields.add(fakeField);
+                usedFieldNames.add(fakeField.name);
+                modified = true;
+            }
         }
 
         // EXTREME RANDOMIZATION: Inner class-like structures (0-3)
@@ -386,8 +395,14 @@ public class DeadCodeInjector implements Transformer {
     /**
      * Generate extremely randomized fake field
      */
-    private FieldNode generateExtremelyRandomField() {
-        String name = fakeFieldNames.get(random.nextInt(fakeFieldNames.size()));
+    private FieldNode generateExtremelyRandomField(Set<String> usedNames) {
+        String name;
+        int attempts = 0;
+        do {
+            name = fakeFieldNames.get(random.nextInt(fakeFieldNames.size()));
+            attempts++;
+            if (attempts > 50) return null;
+        } while (usedNames.contains(name));
 
         int access = Opcodes.ACC_PRIVATE;
         if (random.nextFloat() < 0.3)
